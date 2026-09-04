@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f7f9;
+  color: #18212f;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .shell-card {
+    @apply rounded-lg border border-line bg-white shadow-ud;
+  }
+
+  .eyebrow {
+    @apply text-xs font-extrabold uppercase tracking-[0.08em] text-udblue;
+  }
+
+  .primary-button {
+    @apply rounded-lg bg-udblue px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#163f6e] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .ghost-button {
+    @apply rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .danger-button {
+    @apply rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-udred transition hover:bg-red-100;
+  }
+
+  .field-label {
+    @apply grid gap-2 text-xs font-bold text-muted;
+  }
+
+  .field-input {
+    @apply min-h-10 rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-udblue focus:ring-4 focus:ring-blue-100;
+  }
+}

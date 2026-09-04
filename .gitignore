@@ -1,0 +1,8 @@
+node_modules
+.next
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+
+# Read-only reference clone (see README.md) -- not part of the shipped project.
+reference/
