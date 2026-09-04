@@ -12,6 +12,7 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
   const caseItem = useMemo(() => cases.find((c) => c.id === caseId), [caseId, cases]);
   const [busy, setBusy] = useState(false);
   const [rerouteReason, setRerouteReason] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,6 +63,27 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
       const payload = (await response.json()) as { case?: UnderwritingCase; error?: string };
       if (!response.ok || !payload.case) throw new Error(payload.error || "Resolve failed.");
       persist(payload.case);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectCase() {
+    if (!caseItem) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/cases/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case: caseItem, reason: rejectReason || "Underwriter rejected the AI-suggested assignment outright." })
+      });
+      const payload = (await response.json()) as { case?: UnderwritingCase; error?: string };
+      if (!response.ok || !payload.case) throw new Error(payload.error || "Reject failed.");
+      persist(payload.case);
+      setRejectReason("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -222,30 +244,55 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
             for Operations Manager manual override.
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-muted">Manual review checklist</p>
-              <ul className="mt-3 grid gap-2 text-sm">
-                <li className="rounded-lg border border-line bg-slate-50 p-3">Reclassification: confirm complexity band matches file contents.</li>
-                <li className="rounded-lg border border-line bg-slate-50 p-3">Review checklist: verify authority limit &amp; specialization match.</li>
-                <li className="rounded-lg border border-line bg-slate-50 p-3">Audit log: inspect the full AI decision trace below.</li>
-              </ul>
-              <button className="primary-button mt-4" disabled={busy} onClick={() => void resolveCase()} type="button">
+          <div className="grid items-stretch gap-4 md:grid-cols-3">
+            <div className="flex flex-col justify-between rounded-lg border border-line bg-slate-50 p-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-muted">Approve match</p>
+                <ul className="mt-3 grid gap-2 text-sm">
+                  <li className="rounded-lg border border-line bg-white p-3">Reclassification: confirm complexity band matches file contents.</li>
+                  <li className="rounded-lg border border-line bg-white p-3">Review checklist: verify authority limit &amp; specialization match.</li>
+                  <li className="rounded-lg border border-line bg-white p-3">Audit log: inspect the full AI decision trace below.</li>
+                </ul>
+                <p className="mt-3 text-xs text-muted">
+                  <strong className="text-ink">Resolve</strong> means: you agree {assignee ? assignee.name : "the assignee"} is the right underwriter for
+                  this case and you're closing it out of the active queue. It does not approve/reject the policy checks above -- those are automatic
+                  Filter Node facts, not something a human signs off on one by one.
+                </p>
+              </div>
+              <button className="primary-button mt-4 w-full" disabled={busy} onClick={() => void resolveCase()} type="button">
                 {caseItem.decisionPath === "STP" ? "Confirm STP assignment & Resolve" : "Approve match & Resolve"}
               </button>
             </div>
 
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-muted">Request AI Re-routing</p>
-              <p className="mt-2 text-sm text-muted">If the AI misjudged complexity or specialty, request a re-match excluding the current assignee.</p>
-              <textarea
-                className="field-input mt-3 min-h-20"
-                onChange={(e) => setRerouteReason(e.target.value)}
-                placeholder="e.g. Opened the file, found an additional cardiology complication not disclosed at intake."
-                value={rerouteReason}
-              />
-              <button className="ghost-button mt-3" disabled={busy} onClick={() => void requestReroute()} type="button">
+            <div className="flex flex-col justify-between rounded-lg border border-line bg-slate-50 p-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-muted">Disagree? Re-route</p>
+                <p className="mt-2 text-sm text-muted">AI misjudged complexity or specialty -- ask it to find a different underwriter, excluding the current assignee.</p>
+                <textarea
+                  className="field-input mt-3 min-h-24"
+                  onChange={(e) => setRerouteReason(e.target.value)}
+                  placeholder="e.g. Opened the file, found an additional cardiology complication not disclosed at intake."
+                  value={rerouteReason}
+                />
+              </div>
+              <button className="ghost-button mt-4 w-full" disabled={busy} onClick={() => void requestReroute()} type="button">
                 {busy ? "Re-routing..." : "Request AI Re-routing"}
+              </button>
+            </div>
+
+            <div className="flex flex-col justify-between rounded-lg border border-red-200 bg-red-50/40 p-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-udred">Reject outright</p>
+                <p className="mt-2 text-sm text-muted">No automated candidate is right for this case at all -- skip re-matching and send straight to the Pool Queue for an Ops Manager to hand-pick.</p>
+                <textarea
+                  className="field-input mt-3 min-h-24"
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="e.g. This needs a specific underwriter's sign-off that the matrix doesn't capture."
+                  value={rejectReason}
+                />
+              </div>
+              <button className="danger-button mt-4 w-full" disabled={busy} onClick={() => void rejectCase()} type="button">
+                {busy ? "Rejecting..." : "Reject & send to Pool Queue"}
               </button>
             </div>
           </div>
@@ -258,7 +305,10 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
         <p className="eyebrow">Explainability</p>
         <h2 className="mb-4 mt-1 text-xl font-black">Audit trail for this case</h2>
         <div className="grid gap-2">
-          {caseItem.audit.map((event) => (
+          {caseItem.audit
+            .slice()
+            .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+            .map((event) => (
             <div className="rounded-lg border border-line bg-slate-50 p-3 text-sm" key={event.id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-bold">

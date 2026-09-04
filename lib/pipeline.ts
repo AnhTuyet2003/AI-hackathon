@@ -138,7 +138,8 @@ export async function rerouteCase(current: UnderwritingCase, reason: string, exc
     match,
     assigneeId,
     updatedAt: timestamp(),
-    audit: [...events, ...current.audit]
+    // Audit events are always stored oldest-first (chronological); sort descending at display time.
+    audit: [...current.audit, ...events]
   };
 }
 
@@ -152,11 +153,26 @@ export function applyOverride(current: UnderwritingCase, underwriterId: string, 
     decisionPath: "MANUAL",
     assigneeId: underwriterId,
     updatedAt: timestamp(),
-    audit: [event, ...current.audit]
+    audit: [...current.audit, event]
   };
 }
 
 export function resolveCase(current: UnderwritingCase, note: string): UnderwritingCase {
   const event = audit(current.id, "human", "Case resolved", note || "Underwriter finalized the decision.");
-  return { ...current, status: "RESOLVED", updatedAt: timestamp(), audit: [event, ...current.audit] };
+  return { ...current, status: "RESOLVED", updatedAt: timestamp(), audit: [...current.audit, event] };
+}
+
+// Distinct from "Request AI Re-routing": the underwriter rejects the AI's match outright and sends
+// the case straight to the Pool Queue for a human (Ops Manager) pick, instead of asking the
+// Optimization Node to try again automatically.
+export function rejectToPoolQueue(current: UnderwritingCase, reason: string): UnderwritingCase {
+  const event = audit(current.id, "human", "Assignment rejected -- escalated to Pool Queue", reason || "Underwriter rejected the AI-suggested assignment.");
+  return {
+    ...current,
+    status: "POOL_QUEUE",
+    decisionPath: "ESCALATED",
+    assigneeId: null,
+    updatedAt: timestamp(),
+    audit: [...current.audit, event]
+  };
 }

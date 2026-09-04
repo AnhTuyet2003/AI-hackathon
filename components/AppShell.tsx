@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MobileNav } from "@/components/MobileNav";
 
 const nav = [
   { href: "/", label: "Dashboard" },
@@ -10,7 +11,8 @@ const nav = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f6f7f9] lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="bg-udnavy p-6 text-white lg:min-h-screen">
+      <MobileNav />
+      <aside className="hidden bg-udnavy p-6 text-white lg:sticky lg:top-0 lg:block lg:h-screen lg:overflow-y-auto">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-lg bg-blue-50 font-black text-[#153b64]">UD</div>
           <div>
@@ -30,17 +32,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-
-        <div className="mt-10 rounded-lg border border-white/15 bg-white/5 p-4">
-          <p className="text-sm font-extrabold">Pipeline</p>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-300">
-            <li>Data Ingestion Engine</li>
-            <li>Complexity Classifier + NER</li>
-            <li>Filter Node (8 policies)</li>
-            <li>Optimization Node (matching)</li>
-            <li>STP / Manual / Pool Queue</li>
-          </ul>
-        </div>
       </aside>
 
       <main className="min-w-0 p-5 md:p-8">{children}</main>

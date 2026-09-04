@@ -49,6 +49,6 @@ textarea {
   }
 
   .field-input {
-    @apply min-h-10 rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-udblue focus:ring-4 focus:ring-blue-100;
+    @apply block w-full min-h-10 rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-udblue focus:ring-4 focus:ring-blue-100;
   }
 }
