@@ -1,0 +1,50 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 755 >>
+stream
+BT
+/F1 11 Tf
+50 780 Td
+14 TL
+(LIFE INSURANCE - HEALTH QUESTIONNAIRE) Tj T*
+() Tj T*
+(Applicant: Dang Thi Thu           Age: 51        Sex: F) Tj T*
+(Height: 164 cm    Weight: 79 kg    BMI: 29.4) Tj T*
+() Tj T*
+(1. Do you smoke tobacco?                              NO) Tj T*
+(2. Any diagnosed chronic condition?                   YES) Tj T*
+(   -> Type 2 Diabetes, insulin-dependent, diagnosed 2016.) Tj T*
+(      Last HbA1c 7.8%. Under endocrinology follow-up.) Tj T*
+(3. Regular medication?                                YES \(insulin, Metformin\)) Tj T*
+(4. Dangerous sports or hobbies?                       NO) Tj T*
+(5. Foreign travel > 3 months in the next year?        NO) Tj T*
+() Tj T*
+(Declared by the applicant as true and complete.) Tj T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1117
+%%EOF

@@ -65,6 +65,64 @@ export type AuditEvent = {
   createdAt: string;
 };
 
+// ---------------------------------------------------------------------------------------------
+// Document Ingestion Engine (build spec Sect. 3, step 2). Structured fields pulled out of an
+// uploaded supporting document -- a subset of the ~26-field schema used by the PAX reference
+// project's OpenAI-Vision extractor, mapped onto this app's ApplicationInput domain.
+// ---------------------------------------------------------------------------------------------
+export type DocumentKind = "medical" | "financial" | "identity" | "application" | "other";
+
+export type ExtractedFields = {
+  age?: number;
+  sumAssured?: number;
+  occupation?: string;
+  productLine?: string;
+  smoker?: boolean;
+  packsPerWeek?: number;
+  heightCm?: number;
+  weightKg?: number;
+  bmi?: number;
+  annualIncome?: number;
+  maritalStatus?: string;
+  medicalConditions?: string[];
+  medications?: string[];
+  dangerousSports?: string[];
+  disclosuresText?: string;
+  medicalSummary?: string;
+};
+
+export type DocumentExtraction = {
+  fileName: string;
+  mimeType: string;
+  kind: DocumentKind;
+  provider: "gemini" | "stub";
+  fields: ExtractedFields;
+  summary: string;
+  warnings: string[];
+};
+
+export type FieldOverride = { field: string; from: string; to: string; source: string };
+
+// What the submitter decided when the interactive Submit page asked them to reconcile document
+// data against what they typed (instead of the AI silently overriding).
+export type ReconciliationLog = {
+  applied: FieldOverride[]; // submitter chose the document value
+  keptOwn: { field: string; userValue: string; documentValue: string; source: string }[]; // kept their own despite a mismatch
+  addedToMedicalHistory: boolean;
+  addedToDisclosures: boolean;
+};
+
+export type IngestionResult = {
+  extractions: DocumentExtraction[];
+  filledFields: string[];
+  overriddenFields: FieldOverride[];
+  appendedToMedicalHistory: boolean;
+  // "auto"  -> legacy/direct-API path: document values merged automatically.
+  // "reconciled" -> submitter reviewed each difference on the Submit page before intake.
+  mode?: "auto" | "reconciled";
+  reconciliation?: ReconciliationLog | null;
+};
+
 export type UnderwritingCase = ApplicationInput & {
   id: string;
   status: CaseStatus;
@@ -76,6 +134,8 @@ export type UnderwritingCase = ApplicationInput & {
   match: MatchResult | null;
   assigneeId: string | null;
   provider: "gemini" | "fallback" | null;
+  documentExtractions: DocumentExtraction[];
+  ingestion: IngestionResult | null;
   createdAt: string;
   updatedAt: string;
   audit: AuditEvent[];

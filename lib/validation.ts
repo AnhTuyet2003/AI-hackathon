@@ -1,6 +1,34 @@
 import type { ApplicationInput } from "./types";
+import type { UploadedFile } from "./document-ingest";
 
 const PRODUCT_LINES = ["Individual Life", "Group Life", "Critical Illness", "Health"];
+
+const ALLOWED_UPLOAD_MIME = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "text/plain"];
+const MAX_UPLOAD_FILES = 4;
+const MAX_UPLOAD_BYTES = 4_000_000;
+
+export function parseUploadedFiles(value: unknown): { data: UploadedFile[]; error?: string } {
+  if (value == null) return { data: [] };
+  if (!Array.isArray(value)) return { data: [], error: "Uploaded files payload is malformed." };
+
+  const files: UploadedFile[] = [];
+  for (const item of value.slice(0, MAX_UPLOAD_FILES)) {
+    if (!isRecord(item)) continue;
+    const name = cleanText(item.name, 180);
+    const mimeType = cleanText(item.mimeType, 100).toLowerCase();
+    const dataBase64 = typeof item.dataBase64 === "string" ? item.dataBase64.trim() : "";
+    if (!name || !dataBase64) continue;
+    if (!ALLOWED_UPLOAD_MIME.includes(mimeType)) {
+      return { data: [], error: `Unsupported file type "${mimeType || "unknown"}". Upload PDF, JPG, or PNG.` };
+    }
+    // base64 decodes to ~3/4 of its own length.
+    if (dataBase64.length * 0.75 > MAX_UPLOAD_BYTES) {
+      return { data: [], error: `"${name}" is larger than the 4 MB per-file limit.` };
+    }
+    files.push({ name, mimeType, dataBase64 });
+  }
+  return { data: files };
+}
 
 export function parseApplicationInput(value: unknown): { data?: ApplicationInput; error?: string } {
   if (!isRecord(value)) return { error: "Invalid application payload." };

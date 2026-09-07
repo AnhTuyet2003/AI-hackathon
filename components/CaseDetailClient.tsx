@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ComplexityBadge, StatusBadge } from "@/components/Badges";
 import { getCases, saveCases } from "@/lib/local-store";
 import { underwriterRegistry } from "@/lib/underwriters";
-import type { UnderwritingCase } from "@/lib/types";
+import type { DocumentExtraction, ExtractedFields, UnderwritingCase } from "@/lib/types";
 
 export function CaseDetailClient({ caseId }: { caseId: string }) {
   const [cases, setCases] = useState<UnderwritingCase[]>([]);
@@ -128,6 +128,8 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
         <Info label="Assignee" value={assignee ? `${assignee.name} (${assignee.tier})` : "Unassigned"} />
         <Info label="Engine" value={caseItem.provider === "gemini" ? "Gemini (live)" : "Deterministic fallback"} />
       </section>
+
+      <IngestionPanel extractions={caseItem.documentExtractions ?? []} ingestion={caseItem.ingestion ?? null} />
 
       <section className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="shell-card p-5">
@@ -338,5 +340,118 @@ function Info({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-bold text-muted">{label}</p>
       <strong className="mt-1 block text-lg">{value}</strong>
     </div>
+  );
+}
+
+const FIELD_LABELS: Partial<Record<keyof ExtractedFields, string>> = {
+  age: "Age",
+  sumAssured: "Sum Assured",
+  occupation: "Occupation",
+  productLine: "Product line",
+  smoker: "Smoker",
+  packsPerWeek: "Packs/week",
+  heightCm: "Height (cm)",
+  weightKg: "Weight (kg)",
+  bmi: "BMI",
+  annualIncome: "Annual income",
+  maritalStatus: "Marital status",
+  medicalConditions: "Conditions",
+  medications: "Medications",
+  dangerousSports: "Dangerous sports",
+  disclosuresText: "Disclosures",
+  medicalSummary: "Clinical summary"
+};
+
+function fieldChips(fields: ExtractedFields) {
+  return (Object.entries(fields) as [keyof ExtractedFields, unknown][])
+    .filter(([, v]) => v != null && !(Array.isArray(v) && v.length === 0))
+    .map(([key, v]) => {
+      const label = FIELD_LABELS[key] ?? key;
+      const value = Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
+      return { key, label, value };
+    });
+}
+
+function IngestionPanel({ extractions, ingestion }: { extractions: DocumentExtraction[]; ingestion: UnderwritingCase["ingestion"] }) {
+  if (!extractions.length) return null;
+
+  const reconciled = ingestion?.mode === "reconciled";
+
+  return (
+    <section className="mt-5 shell-card p-5">
+      <p className="eyebrow">Phase 1 -- Data Ingestion Engine</p>
+      <h2 className="mb-1 mt-1 text-xl font-black">Structured fields extracted from documents</h2>
+      <p className="mb-4 text-sm text-muted">
+        {reconciled
+          ? "OCR ran when the documents were attached. The submitter reconciled each difference before intake -- see below and in the audit trail."
+          : "Uploaded files are parsed before scoring. Document values override the intake form; every change is listed below and in the audit trail."}
+      </p>
+
+      <div className="grid gap-3">
+        {extractions.map((doc) => {
+          const chips = fieldChips(doc.fields);
+          return (
+            <div className="rounded-lg border border-line bg-slate-50 p-4" key={doc.fileName}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold">{doc.fileName}</span>
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-black text-muted">{doc.kind}</span>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-black ${
+                    doc.provider === "gemini" ? "bg-blue-50 text-udblue" : "bg-amber-50 text-udamber"
+                  }`}
+                >
+                  {doc.provider === "gemini" ? "Gemini vision" : "Offline stub"}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-muted">{doc.summary}</p>
+              {chips.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {chips.map((c) => (
+                    <span className="rounded-lg border border-line bg-white px-2 py-1 text-xs" key={String(c.key)}>
+                      <strong className="text-ink">{c.label}:</strong> <span className="text-muted">{c.value}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {doc.warnings.length ? (
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-udamber">
+                  {doc.warnings.map((w) => (
+                    <li key={w}>{w}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {ingestion &&
+      (ingestion.filledFields.length > 0 ||
+        ingestion.overriddenFields.length > 0 ||
+        (ingestion.reconciliation?.keptOwn.length ?? 0) > 0 ||
+        ingestion.appendedToMedicalHistory) ? (
+        <div className="mt-4 grid gap-2 rounded-lg border-l-4 border-udblue bg-blue-50 p-4 text-sm">
+          {ingestion.filledFields.length ? (
+            <p>
+              <strong>Auto-filled from documents:</strong> {ingestion.filledFields.join(", ")}.
+            </p>
+          ) : null}
+          {ingestion.overriddenFields.map((o) => (
+            <p key={`${o.field}-${o.to}`}>
+              <strong>{reconciled ? "Aligned to document:" : "Overridden:"}</strong> {o.field}{" "}
+              <span className="text-muted">&ldquo;{o.from}&rdquo; &rarr;</span> &ldquo;{o.to}&rdquo;{" "}
+              <span className="text-muted">(source: {o.source})</span>
+            </p>
+          ))}
+          {(ingestion.reconciliation?.keptOwn ?? []).map((k) => (
+            <p key={`kept-${k.field}`}>
+              <strong>Mismatch kept:</strong> {k.field} &mdash; submitter kept &ldquo;{k.userValue}&rdquo; over document &ldquo;
+              {k.documentValue}&rdquo; <span className="text-muted">(source: {k.source})</span>
+            </p>
+          ))}
+          {ingestion.appendedToMedicalHistory ? <p>Document medical findings were merged into the medical history.</p> : null}
+        </div>
+      ) : null}
+    </section>
   );
 }

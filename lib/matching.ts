@@ -29,9 +29,13 @@ export function evaluateAndRank(
   sumAssured: number,
   ner: NERResult,
   complexity: ComplexityResult,
-  excludeUnderwriterId?: string
+  excludeUnderwriterId?: string,
+  // Optional snapshot of the registry to evaluate against. lib/seed.ts passes an evolving copy
+  // (queue loads incremented as each demo case is assigned) so seeded assignments spread across
+  // the roster instead of every no-specialty case piling onto the single lowest-queue underwriter.
+  registryOverride?: Underwriter[]
 ) {
-  const pool = underwriterRegistry.filter((uw) => uw.id !== excludeUnderwriterId);
+  const pool = (registryOverride ?? underwriterRegistry).filter((uw) => uw.id !== excludeUnderwriterId);
   const evaluations: UnderwriterEvaluation[] = pool.map((uw) => evaluateUnderwriter(uw, sumAssured, ner, complexity));
   const eligibleIds = new Set(evaluations.filter((e) => e.eligible).map((e) => e.underwriterId));
   const eligibleUnderwriters = pool.filter((uw) => eligibleIds.has(uw.id));

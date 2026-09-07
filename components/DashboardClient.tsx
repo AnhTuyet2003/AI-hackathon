@@ -8,12 +8,20 @@ import { getCases, resetCases } from "@/lib/local-store";
 import { underwriterRegistry } from "@/lib/underwriters";
 import type { UnderwritingCase } from "@/lib/types";
 
+const PAGE_SIZE = 8;
+
 export function DashboardClient() {
   const [cases, setCases] = useState<UnderwritingCase[]>([]);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     setCases(getCases());
   }, []);
+
+  const pageCount = Math.max(1, Math.ceil(cases.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const visibleCases = cases.slice(pageStart, pageStart + PAGE_SIZE);
 
   const stats = useMemo(() => {
     const stp = cases.filter((c) => c.decisionPath === "STP").length;
@@ -24,6 +32,7 @@ export function DashboardClient() {
 
   function handleReset() {
     setCases(resetCases());
+    setPage(1);
   }
 
   return (
@@ -94,11 +103,20 @@ export function DashboardClient() {
       </section>
 
       <section className="mt-6 shell-card p-5">
-        <p className="eyebrow">Case queue</p>
-        <h2 className="mb-4 mt-1 text-xl font-black">All cases</h2>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <p className="eyebrow">Case queue</p>
+            <h2 className="mt-1 text-xl font-black">All cases</h2>
+          </div>
+          {cases.length > 0 ? (
+            <p className="text-xs text-muted">
+              Showing {pageStart + 1}-{Math.min(pageStart + PAGE_SIZE, cases.length)} of {cases.length}
+            </p>
+          ) : null}
+        </div>
         <div className="grid gap-3">
           {cases.length === 0 ? <p className="text-sm text-muted">No cases yet -- submit a new application to see the pipeline run.</p> : null}
-          {cases.map((c) => {
+          {visibleCases.map((c) => {
             const assignee = c.assigneeId ? underwriterRegistry.find((u) => u.id === c.assigneeId) : null;
             return (
               <Link
@@ -122,6 +140,42 @@ export function DashboardClient() {
             );
           })}
         </div>
+
+        {pageCount > 1 ? (
+          <nav className="mt-4 flex items-center justify-between gap-2" aria-label="Case queue pagination">
+            <button
+              className="ghost-button px-3 py-1.5 text-xs"
+              disabled={currentPage <= 1}
+              onClick={() => setPage(currentPage - 1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+                <button
+                  aria-current={n === currentPage ? "page" : undefined}
+                  className={`h-8 w-8 rounded-lg border text-xs font-bold transition ${
+                    n === currentPage ? "border-udblue bg-udblue text-white" : "border-line bg-white text-ink hover:bg-slate-50"
+                  }`}
+                  key={n}
+                  onClick={() => setPage(n)}
+                  type="button"
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <button
+              className="ghost-button px-3 py-1.5 text-xs"
+              disabled={currentPage >= pageCount}
+              onClick={() => setPage(currentPage + 1)}
+              type="button"
+            >
+              Next
+            </button>
+          </nav>
+        ) : null}
       </section>
     </div>
   );

@@ -1,8 +1,28 @@
+import { runDocumentIngestion, type UploadedFile } from "./document-ingest";
 import { runGeminiAnalysis } from "./gemini-ai";
 import { runMatching } from "./matching";
 import { detectMissingFields, extractEntities, scoreComplexity } from "./mock-ai";
 import { underwriterRegistry } from "./underwriters";
-import type { ApplicationInput, AuditEvent, CaseStatus, DecisionPath, UnderwritingCase } from "./types";
+import type {
+  ApplicationInput,
+  AuditEvent,
+  CaseStatus,
+  DecisionPath,
+  DocumentExtraction,
+  IngestionResult,
+  ReconciliationLog,
+  UnderwritingCase
+} from "./types";
+
+// Two ways documents reach the pipeline:
+//   files       -- raw uploads to OCR + auto-merge here (direct API callers, the offline seed).
+//   extractions -- already OCR'd by /api/documents/extract and reconciled by the submitter on the
+//                  Submit page; the pipeline trusts `input` as-is and only records what happened.
+export type IngestOptions = {
+  files?: UploadedFile[];
+  extractions?: DocumentExtraction[];
+  reconciliation?: ReconciliationLog | null;
+};
 
 function id(prefix: string) {
   return `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -19,12 +39,66 @@ function audit(caseId: string, actor: AuditEvent["actor"], action: string, detai
 // Phase 2, steps 3-8 of the flow: Data Ingestion (the ApplicationInput itself is the ingested
 // payload, aggregated client-side from the intake form) -> Complexity Classifier + NER -> Filter
 // Node -> Optimization Node -> consolidated STP / Manual / Escalated decision.
-export async function runIntakePipeline(input: ApplicationInput): Promise<UnderwritingCase> {
+export async function runIntakePipeline(input: ApplicationInput, opts: IngestOptions = {}): Promise<UnderwritingCase> {
   const caseId = id("APP");
   const now = timestamp();
   const events: AuditEvent[] = [audit(caseId, "system", "Case submitted", "Status set to PENDING; entered Data Ingestion Engine.")];
 
-  const { missingFields, followUpMessage } = detectMissingFields(input);
+  // Step 2 -- Document Ingestion Engine.
+  let workingInput = input;
+  let ingestion: IngestionResult | null = null;
+
+  if (opts.extractions?.length) {
+    // Submitter already reconciled the document data on the Submit page: trust `input`.
+    const recon = opts.reconciliation ?? null;
+    ingestion = {
+      extractions: opts.extractions,
+      filledFields: [],
+      overriddenFields: recon?.applied ?? [],
+      appendedToMedicalHistory: recon?.addedToMedicalHistory ?? false,
+      mode: "reconciled",
+      reconciliation: recon
+    };
+    const roster = opts.extractions.map((e) => `${e.fileName} [${e.kind}, ${e.provider}]`).join("; ");
+    events.push(
+      audit(caseId, "ai", "Document Ingestion Engine", `OCR ran at upload for ${opts.extractions.length} document(s): ${roster}. Submitter reconciled the fields before intake.`)
+    );
+    for (const e of opts.extractions) {
+      events.push(audit(caseId, "ai", `Extracted from ${e.fileName}`, [e.summary, ...e.warnings].join(" ")));
+    }
+    for (const a of recon?.applied ?? []) {
+      events.push(audit(caseId, "human", "Field aligned to document", `${a.field}: "${a.from}" -> "${a.to}" (source: ${a.source}).`));
+    }
+    for (const k of recon?.keptOwn ?? []) {
+      events.push(
+        audit(caseId, "human", "Document mismatch acknowledged", `${k.field}: kept "${k.userValue}" over document "${k.documentValue}" (source: ${k.source}).`)
+      );
+    }
+    if (recon?.addedToMedicalHistory) {
+      events.push(audit(caseId, "human", "Document findings merged", "Submitter added document medical findings to the medical history."));
+    }
+    if (recon?.addedToDisclosures) {
+      events.push(audit(caseId, "human", "Document findings merged", "Submitter added document notes to the disclosures."));
+    }
+  } else if (opts.files?.length) {
+    // Direct-API / seed path: OCR + auto-merge (document wins), every change recorded.
+    const merged = await runDocumentIngestion(input, opts.files);
+    workingInput = merged.input;
+    ingestion = merged.ingestion;
+    const roster = ingestion.extractions.map((e) => `${e.fileName} [${e.kind}, ${e.provider}]`).join("; ");
+    events.push(audit(caseId, "ai", "Document Ingestion Engine", `Parsed ${ingestion.extractions.length} document(s): ${roster}.`));
+    for (const e of ingestion.extractions) {
+      events.push(audit(caseId, "ai", `Extracted from ${e.fileName}`, [e.summary, ...e.warnings].join(" ")));
+    }
+    if (ingestion.filledFields.length) {
+      events.push(audit(caseId, "ai", "Fields auto-filled from documents", `Populated empty field(s): ${ingestion.filledFields.join(", ")}.`));
+    }
+    for (const o of ingestion.overriddenFields) {
+      events.push(audit(caseId, "ai", "Field overridden from document", `${o.field}: "${o.from}" -> "${o.to}" (source: ${o.source}).`));
+    }
+  }
+
+  const { missingFields, followUpMessage } = detectMissingFields(workingInput);
   events.push(
     audit(
       caseId,
@@ -38,14 +112,14 @@ export async function runIntakePipeline(input: ApplicationInput): Promise<Underw
   let complexity;
   let ner;
   try {
-    const analysis = await runGeminiAnalysis(input);
+    const analysis = await runGeminiAnalysis(workingInput);
     complexity = analysis.complexity;
     ner = analysis.ner;
     provider = "gemini";
     events.push(audit(caseId, "ai", "Complexity Classifier + NER (Gemini)", `${complexity.reasonCode} Specialties required: ${ner.specialtiesRequired.join(", ") || "none"}.`));
   } catch (error) {
-    ner = extractEntities(input);
-    complexity = scoreComplexity(input, ner);
+    ner = extractEntities(workingInput);
+    complexity = scoreComplexity(workingInput, ner);
     provider = "fallback";
     events.push(
       audit(
@@ -58,7 +132,7 @@ export async function runIntakePipeline(input: ApplicationInput): Promise<Underw
     events.push(audit(caseId, "ai", "Complexity Classifier + NER (rule-based fallback)", `${complexity.reasonCode} Specialties required: ${ner.specialtiesRequired.join(", ") || "none"}.`));
   }
 
-  const match = await runMatching(caseId, input.sumAssured, ner, complexity);
+  const match = await runMatching(caseId, workingInput.sumAssured, ner, complexity);
   events.push(
     audit(
       caseId,
@@ -72,7 +146,7 @@ export async function runIntakePipeline(input: ApplicationInput): Promise<Underw
   events.push(audit(caseId, "system", decisionLogAction(decisionPath), decisionLogDetail(decisionPath, assigneeId)));
 
   return {
-    ...input,
+    ...workingInput,
     id: caseId,
     status,
     decisionPath,
@@ -83,6 +157,8 @@ export async function runIntakePipeline(input: ApplicationInput): Promise<Underw
     match,
     assigneeId,
     provider,
+    documentExtractions: ingestion?.extractions ?? [],
+    ingestion: ingestion && ingestion.extractions.length ? ingestion : null,
     createdAt: now,
     updatedAt: timestamp(),
     audit: events

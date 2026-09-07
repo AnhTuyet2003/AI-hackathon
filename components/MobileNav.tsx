@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { RoleSwitcher } from "@/components/RoleSwitcher";
 
-const nav = [
-  { href: "/", label: "Dashboard" },
-  { href: "/submit", label: "Submit Application" },
-  { href: "/pool-queue", label: "Pool Queue" },
-  { href: "/audit", label: "Audit Log" }
-];
+type NavItem = { href: string; label: string };
 
-export function MobileNav() {
+export function MobileNav({ items }: { items: NavItem[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -57,7 +53,7 @@ export function MobileNav() {
             </div>
 
             <nav className="mt-8 grid gap-2">
-              {nav.map((item) => (
+              {items.map((item) => (
                 <Link
                   className="rounded-lg px-3 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-[#243449] hover:text-white"
                   href={item.href}
@@ -68,6 +64,8 @@ export function MobileNav() {
                 </Link>
               ))}
             </nav>
+
+            <RoleSwitcher onNavigate={() => setOpen(false)} />
           </div>
 
           <button aria-label="Close navigation" className="flex-1 bg-black/50" onClick={() => setOpen(false)} type="button" />

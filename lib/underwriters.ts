@@ -62,6 +62,40 @@ export const underwriterRegistry: Underwriter[] = [
     currentQueueLoad: 11,
     slaMinutesRemainingAvg: 45,
     availability: "active"
+  },
+  // Added so the Medical tier can actually receive an assignment: Dr. Alex Minh is DND and
+  // Dr. Lan Pham is permanently over the Medical queue cap, which previously forced every
+  // Complex Medical case into the Pool Queue. Dr. Do Khanh has a high but finite authority
+  // limit, so catastrophic-Sum-Assured cases still escalate.
+  {
+    id: "UW-DKHANH",
+    name: "Dr. Do Khanh",
+    tier: "Medical",
+    authorityLimit: 1_500_000,
+    specializationTags: ["Complex Medical", "Endocrinology", "Liver"],
+    currentQueueLoad: 3,
+    slaMinutesRemainingAvg: 110,
+    availability: "active"
+  },
+  {
+    id: "UW-MTHAO",
+    name: "Mai Thao",
+    tier: "Senior",
+    authorityLimit: 600_000,
+    specializationTags: ["Cardiology", "Standard"],
+    currentQueueLoad: 2,
+    slaMinutesRemainingAvg: 200,
+    availability: "active"
+  },
+  {
+    id: "UW-RGUPTA",
+    name: "Ravi Gupta",
+    tier: "Junior",
+    authorityLimit: 120_000,
+    specializationTags: ["Standard", "Accidental"],
+    currentQueueLoad: 4,
+    slaMinutesRemainingAvg: 520,
+    availability: "active"
   }
 ];
 
