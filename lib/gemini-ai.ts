@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
-import { detectMissingFields, extractEntities, scoreComplexity } from "./mock-ai";
-import type { ApplicationInput, ComplexityResult, NERResult } from "./types";
+import { detectMissingFields, extractEntities, formatComplexityReason, scoreComplexity } from "./mock-ai";
+import type { ApplicationInput, ComplexityResult, ExtractedFields, NERResult } from "./types";
 
 export type GeminiAnalysis = { complexity: ComplexityResult; ner: NERResult };
 
@@ -9,7 +9,7 @@ export type GeminiAnalysis = { complexity: ComplexityResult; ner: NERResult };
 // (app/api/cases/process/route.ts) can fall back to the deterministic engine in lib/mock-ai.ts --
 // the fallback is not optional, it's what keeps the demo alive with no API key / quota / network.
 
-export async function runGeminiAnalysis(input: ApplicationInput): Promise<GeminiAnalysis> {
+export async function runGeminiAnalysis(input: ApplicationInput, clinicalFields?: ExtractedFields): Promise<GeminiAnalysis> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.");
 
@@ -20,6 +20,9 @@ application and return only valid JSON, no prose.
 
 Application:
 ${JSON.stringify(input, null, 2)}
+
+Clinical evidence extracted from uploaded documents:
+${JSON.stringify(clinicalFields ?? {}, null, 2)}
 
 Return an object with:
 - score: integer 1-10 complexity score (1-3 low/clean, 4-7 medium/minor disclosures, 8-10 high/complex multi-morbidity or HNW or unusual occupation)
@@ -36,10 +39,10 @@ Return an object with:
     config: { responseMimeType: "application/json" }
   });
 
-  return normalizeGeminiOutput(response.text || "{}", input);
+  return normalizeGeminiOutput(response.text || "{}", input, clinicalFields);
 }
 
-function normalizeGeminiOutput(rawText: string, input: ApplicationInput): GeminiAnalysis {
+function normalizeGeminiOutput(rawText: string, input: ApplicationInput, clinicalFields?: ExtractedFields): GeminiAnalysis {
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawText);
@@ -48,29 +51,45 @@ function normalizeGeminiOutput(rawText: string, input: ApplicationInput): Gemini
   }
   if (!isRecord(parsed)) throw new Error("Gemini returned an invalid response shape.");
 
-  const fallbackNer = extractEntities(input);
-  const entities = Array.isArray(parsed.entities)
-    ? parsed.entities
-        .filter((e): e is { text: unknown; specialization: unknown } => isRecord(e))
-        .map((e) => ({ text: readString(e.text, ""), specialization: readString(e.specialization, "") }))
-        .filter((e) => e.text && e.specialization)
-    : fallbackNer.entities;
-
-  const specialtiesRequired = normalizeStringArray(parsed.specialtiesRequired);
+  // Gemini may over-infer a specialty from generic symptoms. Confirm entities only when the
+  // deterministic application evidence contains a known condition; document-only symptoms stay
+  // possible/unknown and cannot become underwriting requirements.
+  const fallbackNer = extractEntities(input, clinicalFields);
+  const entities = fallbackNer.entities;
+  const specialtiesRequired = fallbackNer.specialtiesRequired;
   const ner: NERResult = {
     entities,
-    specialtiesRequired: specialtiesRequired.length > 0 ? specialtiesRequired : Array.from(new Set(entities.map((e) => e.specialization)))
+    specialtiesRequired,
+    possibleSpecialties: fallbackNer.possibleSpecialties,
+    confidence: clinicalFields !== undefined ? Math.min(fallbackNer.confidence, 0.5) : entities.length ? 0.85 : 0.8
   };
 
-  const score = normalizeScore(parsed.score);
-  const band = parsed.band === "low" || parsed.band === "medium" || parsed.band === "high" ? parsed.band : bandForScore(score);
-  const driverFactors = normalizeStringArray(parsed.driverFactors);
-  const reasonCode =
-    typeof parsed.reasonCode === "string" && parsed.reasonCode.trim()
-      ? parsed.reasonCode.trim()
-      : `Score ${score} -- ${driverFactors.length ? driverFactors.join("; ") : "no elevated risk factors detected"}.`;
+  const deterministic = scoreComplexity(input, ner, clinicalFields);
+  const score = clinicalFields === undefined ? normalizeScore(parsed.score) : deterministic.score;
+  const band = clinicalFields === undefined
+    ? (parsed.band === "low" || parsed.band === "medium" || parsed.band === "high" ? parsed.band : bandForScore(score))
+    : deterministic.band;
+  const driverFactors = clinicalFields === undefined ? normalizeStringArray(parsed.driverFactors) : deterministic.driverFactors;
+  const reasonCode = formatComplexityReason(
+    score,
+    clinicalFields === undefined ? score : deterministic.applicationComplexityScore,
+    clinicalFields === undefined ? 1 : deterministic.clinicalComplexityScore,
+    driverFactors
+  );
 
-  const complexity: ComplexityResult = { score, band, reasonCode, driverFactors };
+  const complexity: ComplexityResult = clinicalFields === undefined
+    ? {
+        score,
+        caseComplexityScore: score,
+        band,
+        reasonCode,
+        driverFactors,
+        applicationComplexityScore: score,
+        clinicalComplexityScore: 1,
+        complexityConfidence: 0.85,
+        complexityEvidence: ["Application-level Gemini complexity assessment."]
+      }
+    : { ...deterministic, score, band: bandForScore(score), reasonCode, driverFactors };
 
   return { complexity, ner };
 }

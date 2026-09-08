@@ -2,6 +2,7 @@ import type {
   ApplicationInput,
   DocumentExtraction,
   DocumentKind,
+  EvidenceSource,
   ExtractedFields,
   FieldOverride,
   IngestionResult,
@@ -181,12 +182,13 @@ export function normalizeStringArray(value: unknown): string[] {
 }
 
 export function normalizeKind(value: unknown): DocumentKind | null {
-  return value === "medical" || value === "financial" || value === "identity" || value === "application" || value === "other"
+  return value === "medical" || value === "financial" || value === "identity" || value === "application" || value === "claim" || value === "other"
     ? value
     : null;
 }
 
 export function kindFromName(name: string): DocumentKind {
+  if (/claim|hospital|clinic|dossier|medical-record/i.test(name)) return "claim";
   if (/doctor|medical|health|questionnaire|clinical|ehr/i.test(name)) return "medical";
   if (/financial|statement|income|salary|hnw/i.test(name)) return "financial";
   if (/id-|identity|passport|kyc/i.test(name)) return "identity";
@@ -239,7 +241,34 @@ function sanitizeFields(value: unknown): ExtractedFields {
   if (ds.length) f.dangerousSports = ds;
   f.disclosuresText = str(value.disclosuresText, 600) || undefined;
   f.medicalSummary = str(value.medicalSummary, 600) || undefined;
+  for (const key of [
+    "patientName", "dateOfBirth", "medicalRecordNumber", "policyNumber", "providerCode", "facilityName",
+    "department", "roomOrServiceLocation", "serviceStart", "serviceEnd", "chiefComplaint", "symptoms",
+    "relevantMedicalHistory", "vitalSigns", "physicalFindings", "investigations", "testResults", "treatment",
+    "procedures", "procedureDate", "clinicalCourse", "outcome", "dischargeInstructions", "diagnosis", "diagnosisCode", "supportingDocuments"
+  ] as const) {
+    const valueForKey = str(value[key], 800);
+    if (valueForKey && (!["dateOfBirth", "serviceStart", "serviceEnd", "procedureDate"].includes(key) || validDateValue(valueForKey))) f[key] = valueForKey;
+  }
+  const signedNum = (v: unknown) => {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  f.billingAmount = signedNum(value.billingAmount);
+  f.eligibleAmount = signedNum(value.eligibleAmount);
+  f.patientResponsibility = signedNum(value.patientResponsibility);
+  f.insurerPayment = signedNum(value.insurerPayment);
+  if (typeof value.extractionConfidence === "number" && Number.isFinite(value.extractionConfidence)) {
+    f.extractionConfidence = Math.max(0, Math.min(1, value.extractionConfidence));
+  }
+  if (typeof value.extractionSource === "string" && ["ocr", "pdf-text-extraction", "docx-extraction", "plain-text", "gemini", "user-edited"].includes(value.extractionSource)) {
+    f.extractionSource = value.extractionSource as EvidenceSource;
+  }
   return f;
+}
+
+function validDateValue(value: string) {
+  return Number.isFinite(Date.parse(value)) || /\d{1,2}\s+[A-Za-z]+\s+\d{4}/.test(value);
 }
 
 export function parseExtractions(value: unknown): DocumentExtraction[] {
@@ -248,15 +277,34 @@ export function parseExtractions(value: unknown): DocumentExtraction[] {
     if (!isRecord(item)) return [];
     const fileName = str(item.fileName, 180);
     if (!fileName) return [];
+    const warnings = normalizeStringArray(item.warnings).slice(0, 6);
+    if (isRecord(item.fields)) {
+      for (const key of ["dateOfBirth", "serviceStart", "serviceEnd", "procedureDate"] as const) {
+        if (typeof item.fields[key] === "string" && item.fields[key].trim() && !validDateValue(item.fields[key])) warnings.push(`Invalid ${key} was discarded.`);
+      }
+      for (const key of ["billingAmount", "eligibleAmount", "patientResponsibility", "insurerPayment"] as const) {
+        if (item.fields[key] != null && (!Number.isFinite(Number(item.fields[key])) || Number(item.fields[key]) < 0)) warnings.push(`Invalid ${key} was discarded.`);
+      }
+    }
     return [
       {
         fileName,
         mimeType: str(item.mimeType, 100),
-        kind: normalizeKind(item.kind) ?? kindFromName(fileName),
+        // A client payload without a validated content classification must not be classified from
+        // its filename. The evaluator will use the sanitized fields and extracted text instead.
+        kind: normalizeKind(item.kind) ?? "other",
         provider: item.provider === "gemini" ? "gemini" : "stub",
         fields: sanitizeFields(item.fields),
+        rawText: str(item.rawText, 20_000),
+        readable: item.readable !== false,
+        source: item.source === "ocr" || item.source === "pdf-text-extraction" || item.source === "docx-extraction" || item.source === "plain-text" || item.source === "gemini" || item.source === "user-edited"
+          ? item.source as EvidenceSource
+          : item.provider === "gemini" ? "gemini" : undefined,
         summary: str(item.summary, 400),
-        warnings: normalizeStringArray(item.warnings).slice(0, 6)
+        warnings: warnings.slice(0, 8),
+        documentSessionId: str(item.documentSessionId, 120) || undefined,
+        sourceFileHash: str(item.sourceFileHash, 128) || undefined,
+        createdAt: str(item.createdAt, 40) || undefined
       }
     ];
   });

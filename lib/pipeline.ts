@@ -1,18 +1,28 @@
 import { runDocumentIngestion, type UploadedFile } from "./document-ingest";
 import { runGeminiAnalysis } from "./gemini-ai";
 import { runMatching } from "./matching";
+import { evaluateDocumentQuality } from "./document-quality";
 import { detectMissingFields, extractEntities, scoreComplexity } from "./mock-ai";
+import { combineExtractedFields } from "./reconcile";
 import { underwriterRegistry } from "./underwriters";
 import type {
   ApplicationInput,
   AuditEvent,
   CaseStatus,
+  ComplexityResult,
   DecisionPath,
   DocumentExtraction,
   IngestionResult,
   ReconciliationLog,
+  UnderwriterEvaluation,
   UnderwritingCase
 } from "./types";
+
+export const MIN_AUTO_ASSIGN_CONFIDENCE = 0.75;
+
+export function passesAutoAssignmentConfidence(documentConfidence: number | null | undefined, complexityConfidence: number) {
+  return (documentConfidence == null || documentConfidence >= MIN_AUTO_ASSIGN_CONFIDENCE) && complexityConfidence >= MIN_AUTO_ASSIGN_CONFIDENCE;
+}
 
 // Two ways documents reach the pipeline:
 //   files       -- raw uploads to OCR + auto-merge here (direct API callers, the offline seed).
@@ -22,6 +32,7 @@ export type IngestOptions = {
   files?: UploadedFile[];
   extractions?: DocumentExtraction[];
   reconciliation?: ReconciliationLog | null;
+  documentSessionId?: string;
 };
 
 function id(prefix: string) {
@@ -47,6 +58,7 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
   // Step 2 -- Document Ingestion Engine.
   let workingInput = input;
   let ingestion: IngestionResult | null = null;
+  let documentQuality = null as ReturnType<typeof evaluateDocumentQuality> | null;
 
   if (opts.extractions?.length) {
     // Submitter already reconciled the document data on the Submit page: trust `input`.
@@ -58,6 +70,7 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
       appendedToMedicalHistory: recon?.addedToMedicalHistory ?? false,
       mode: "reconciled",
       reconciliation: recon
+      ,documentSessionId: opts.documentSessionId ?? opts.extractions[0].documentSessionId
     };
     const roster = opts.extractions.map((e) => `${e.fileName} [${e.kind}, ${e.provider}]`).join("; ");
     events.push(
@@ -85,6 +98,7 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
     const merged = await runDocumentIngestion(input, opts.files);
     workingInput = merged.input;
     ingestion = merged.ingestion;
+    ingestion.documentSessionId = opts.documentSessionId ?? ingestion.extractions[0]?.documentSessionId;
     const roster = ingestion.extractions.map((e) => `${e.fileName} [${e.kind}, ${e.provider}]`).join("; ");
     events.push(audit(caseId, "ai", "Document Ingestion Engine", `Parsed ${ingestion.extractions.length} document(s): ${roster}.`));
     for (const e of ingestion.extractions) {
@@ -97,6 +111,27 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
       events.push(audit(caseId, "ai", "Field overridden from document", `${o.field}: "${o.from}" -> "${o.to}" (source: ${o.source}).`));
     }
   }
+
+  // New document-quality gate. It runs after ingestion, before final routing, and is intentionally
+  // independent from underwriting risk scoring. Applications without an uploaded extraction keep
+  // the legacy behavior; applications with claim/medical evidence must pass this gate before they
+  // can be auto-assigned.
+  if (ingestion?.extractions.length) {
+    const engineUsed = ingestion.extractions.every((e) => e.provider === "gemini") ? "gemini" : "deterministic-fallback";
+    documentQuality = evaluateDocumentQuality(ingestion.extractions, engineUsed);
+    events.push(
+      audit(
+        caseId,
+        "ai",
+        `Document Quality Evaluator (${documentQuality.engineUsed})`,
+        `Score ${documentQuality.score}/10 — ${documentQuality.validationStatus}. Profile: ${documentQuality.detectedMedicalProfile}. ${
+          documentQuality.contradictions.length ? `Issues: ${documentQuality.contradictions.map((item) => `${item.code}: ${item.message} (-${item.penalty})`).join(" ")}` : "Required evidence is coherent."
+        }`
+      )
+    );
+  }
+
+  const clinicalFields = ingestion?.extractions.length ? combineExtractedFields(ingestion.extractions.map((e) => e.fields)) : undefined;
 
   const { missingFields, followUpMessage } = detectMissingFields(workingInput);
   events.push(
@@ -112,14 +147,14 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
   let complexity;
   let ner;
   try {
-    const analysis = await runGeminiAnalysis(workingInput);
+    const analysis = await runGeminiAnalysis(workingInput, clinicalFields);
     complexity = analysis.complexity;
     ner = analysis.ner;
     provider = "gemini";
     events.push(audit(caseId, "ai", "Complexity Classifier + NER (Gemini)", `${complexity.reasonCode} Specialties required: ${ner.specialtiesRequired.join(", ") || "none"}.`));
   } catch (error) {
-    ner = extractEntities(workingInput);
-    complexity = scoreComplexity(workingInput, ner);
+    ner = extractEntities(workingInput, clinicalFields);
+    complexity = scoreComplexity(workingInput, ner, clinicalFields);
     provider = "fallback";
     events.push(
       audit(
@@ -132,6 +167,14 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
     events.push(audit(caseId, "ai", "Complexity Classifier + NER (rule-based fallback)", `${complexity.reasonCode} Specialties required: ${ner.specialtiesRequired.join(", ") || "none"}.`));
   }
 
+  if (documentQuality && (documentQuality.score < 8 || documentQuality.validationStatus === "FAILED" || documentQuality.semanticMatchScore < 0.5 || documentQuality.reasonCodes.includes("MISSING_REQUIRED_FIELDS"))) {
+    complexity = {
+      ...complexity,
+      complexityConfidence: Math.min(complexity.complexityConfidence, 0.45),
+      complexityEvidence: [...complexity.complexityEvidence, "Low confidence: document quality or required clinical evidence is insufficient."]
+    };
+  }
+
   const match = await runMatching(caseId, workingInput.sumAssured, ner, complexity);
   events.push(
     audit(
@@ -142,8 +185,24 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
     )
   );
 
-  const { status, decisionPath, assigneeId } = decide(complexity.band, match.chosenUnderwriterId);
-  events.push(audit(caseId, "system", decisionLogAction(decisionPath), decisionLogDetail(decisionPath, assigneeId)));
+  const { status, decisionPath, assigneeId, poolQueueReason } = decide(complexity, match.chosenUnderwriterId, match.evaluations, documentQuality);
+  if (documentQuality?.validationStatus === "FAILED") {
+    events.push(
+      audit(
+        caseId,
+        "system",
+        "Document validation blocked assignment",
+        `Document score ${documentQuality.score}/10 is below the 8/10 threshold. Routed to Pool Queue. ${documentQuality.missingFields.length ? `Missing: ${documentQuality.missingFields.join(", ")}.` : ""}`
+      )
+    );
+  }
+  if (poolQueueReason === "INSUFFICIENT_EVALUATION_CONFIDENCE") {
+    events.push(audit(caseId, "system", "Confidence gate blocked auto-assignment", `Required confidence is at least ${MIN_AUTO_ASSIGN_CONFIDENCE}. Document confidence: ${documentQuality?.evaluatorConfidence ?? "n/a"}; complexity confidence: ${complexity.complexityConfidence}.`));
+  }
+  if (poolQueueReason === "POLICY_FAILURE" || poolQueueReason === "NO_ELIGIBLE_UNDERWRITER") {
+    events.push(audit(caseId, "system", "Eligibility gate blocked assignment", `Pool Queue reason: ${poolQueueReason}.`));
+  }
+  events.push(audit(caseId, "system", decisionLogAction(decisionPath), decisionLogDetail(decisionPath, assigneeId, poolQueueReason)));
 
   return {
     ...workingInput,
@@ -156,32 +215,62 @@ export async function runIntakePipeline(input: ApplicationInput, opts: IngestOpt
     ner,
     match,
     assigneeId,
+    poolQueueReason,
     provider,
     documentExtractions: ingestion?.extractions ?? [],
     ingestion: ingestion && ingestion.extractions.length ? ingestion : null,
+    documentQuality,
+    documentSessionId: ingestion?.documentSessionId ?? opts.documentSessionId,
     createdAt: now,
     updatedAt: timestamp(),
     audit: events
   };
 }
 
-function decide(band: "low" | "medium" | "high", chosenUnderwriterId: string | null): { status: CaseStatus; decisionPath: DecisionPath; assigneeId: string | null } {
-  if (!chosenUnderwriterId) return { status: "POOL_QUEUE", decisionPath: "ESCALATED", assigneeId: null };
-  if (band === "low") return { status: "ASSIGNED_STP", decisionPath: "STP", assigneeId: chosenUnderwriterId };
-  return { status: "ASSIGNED_MANUAL", decisionPath: "MANUAL", assigneeId: chosenUnderwriterId };
+function decide(
+  complexity: ComplexityResult,
+  chosenUnderwriterId: string | null,
+  evaluations: UnderwriterEvaluation[],
+  documentQuality: ReturnType<typeof evaluateDocumentQuality> | null
+): { status: CaseStatus; decisionPath: DecisionPath; assigneeId: string | null; poolQueueReason: UnderwritingCase["poolQueueReason"] } {
+  if (!complexity) return { status: "POOL_QUEUE", decisionPath: "ESCALATED", assigneeId: null, poolQueueReason: "INSUFFICIENT_EVALUATION_CONFIDENCE" };
+  if (documentQuality?.validationStatus === "FAILED") {
+    return {
+      status: "POOL_QUEUE",
+      decisionPath: "POOL_QUEUE",
+      assigneeId: null,
+      poolQueueReason: documentQuality.readabilityScore === 0
+        ? "DOCUMENT_UNREADABLE"
+        : documentQuality.reasonCodes.includes("SEMANTIC_MATCH_BELOW_THRESHOLD")
+          ? "SEMANTIC_MATCH_BELOW_THRESHOLD"
+          : documentQuality.contradictions.length ? "CONTRADICTORY_INFORMATION" : "DOCUMENT_QUALITY_FAILURE"
+    };
+  }
+  if (!passesAutoAssignmentConfidence(documentQuality?.evaluatorConfidence, complexity.complexityConfidence)) {
+    return { status: "POOL_QUEUE", decisionPath: "ESCALATED", assigneeId: null, poolQueueReason: "INSUFFICIENT_EVALUATION_CONFIDENCE" };
+  }
+  if (!chosenUnderwriterId) {
+    const hardPolicyFailure = evaluations?.some((evaluation) => evaluation.policies.some((policy) => ["Authority Limit", "Specialization", "Workload Balancing", "Availability"].includes(policy.policy) && !policy.passed));
+    return { status: "POOL_QUEUE", decisionPath: "ESCALATED", assigneeId: null, poolQueueReason: hardPolicyFailure ? "POLICY_FAILURE" : "NO_ELIGIBLE_UNDERWRITER" };
+  }
+  if (complexity.band === "low") return { status: "ASSIGNED_STP", decisionPath: "STP", assigneeId: chosenUnderwriterId, poolQueueReason: null };
+  return { status: "ASSIGNED_MANUAL", decisionPath: "MANUAL", assigneeId: chosenUnderwriterId, poolQueueReason: null };
 }
 
 function decisionLogAction(path: DecisionPath) {
   if (path === "STP") return "Auto-assignment executed (STP)";
   if (path === "MANUAL") return "Routed to manual review (non-STP)";
+  if (path === "POOL_QUEUE") return "Document validation failed -- routed to Pool Queue";
   return "Escalated to Pool Queue";
 }
 
-function decisionLogDetail(path: DecisionPath, assigneeId: string | null) {
+function decisionLogDetail(path: DecisionPath, assigneeId: string | null, poolQueueReason?: UnderwritingCase["poolQueueReason"]) {
   const uw = assigneeId ? underwriterRegistry.find((u) => u.id === assigneeId) : null;
   if (path === "STP") return `Auto-assigned to ${uw?.name ?? assigneeId} -- no human review needed. Underwriter dashboard notified.`;
   if (path === "MANUAL") return `Tentatively matched to ${uw?.name ?? assigneeId} -- pending underwriter/ops manual review and confirmation.`;
-  return "No qualifying underwriter found (Escalation Policy). Operations Manager alerted for manual override from Pool Queue.";
+  return poolQueueReason
+    ? `Pool Queue reason: ${poolQueueReason}. Operations Manager alerted for manual review or override.`
+    : "No qualifying underwriter found (Escalation Policy). Operations Manager alerted for manual override from Pool Queue.";
 }
 
 // Re-runs the Optimization Node only, used by "Request AI Re-routing" (an underwriter disputes the
@@ -204,8 +293,8 @@ export async function rerouteCase(current: UnderwritingCase, reason: string, exc
     )
   );
 
-  const { status, decisionPath, assigneeId } = decide(current.complexity.band, match.chosenUnderwriterId);
-  events.push(audit(current.id, "system", decisionLogAction(decisionPath), decisionLogDetail(decisionPath, assigneeId)));
+  const { status, decisionPath, assigneeId, poolQueueReason } = decide(current.complexity, match.chosenUnderwriterId, match.evaluations, current.documentQuality);
+  events.push(audit(current.id, "system", decisionLogAction(decisionPath), decisionLogDetail(decisionPath, assigneeId, poolQueueReason)));
 
   return {
     ...current,
@@ -213,6 +302,7 @@ export async function rerouteCase(current: UnderwritingCase, reason: string, exc
     decisionPath,
     match,
     assigneeId,
+    poolQueueReason,
     updatedAt: timestamp(),
     // Audit events are always stored oldest-first (chronological); sort descending at display time.
     audit: [...current.audit, ...events]

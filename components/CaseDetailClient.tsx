@@ -16,6 +16,7 @@ import {
 } from "@/components/ModelDriven";
 import { getCases, saveCases } from "@/lib/local-store";
 import { underwriterRegistry } from "@/lib/underwriters";
+import { formatComplexityReason } from "@/lib/mock-ai";
 import type { DocumentExtraction, ExtractedFields, UnderwritingCase } from "@/lib/types";
 
 const TABS = ["Assessment", "Documents", "Allocation Matrix", "Actions", "Audit"] as const;
@@ -136,6 +137,7 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
   const assignee = caseItem.assigneeId ? underwriterRegistry.find((u) => u.id === caseItem.assigneeId) : null;
   const isLocked = caseItem.status === "RESOLVED";
   const isPooled = caseItem.status === "POOL_QUEUE";
+  const documentQualityFailed = caseItem.documentQuality?.validationStatus === "FAILED";
 
   return (
     <>
@@ -175,7 +177,9 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
         facts={[
           { label: "Case ID", value: caseItem.id },
           { label: "Sum Assured", value: `$${caseItem.sumAssured.toLocaleString("en-US")}` },
-          { label: "Decision Path", value: caseItem.decisionPath ?? "—" },
+          { label: "Document Route", value: documentQualityFailed ? "POOL_QUEUE" : caseItem.documentQuality?.route ?? "—" },
+          { label: "Pool Queue Reason", value: documentQualityFailed ? caseItem.poolQueueReason ?? "DOCUMENT_QUALITY_FAILURE" : "—" },
+          { label: "Underwriting Decision", value: documentQualityFailed ? "NOT_EVALUATED" : caseItem.decisionPath ?? "—" },
           { label: "Assignee", value: assignee ? assignee.name : "Unassigned" },
           { label: "Engine", value: caseItem.provider === "gemini" ? "Gemini (live)" : "Deterministic" }
         ]}
@@ -214,23 +218,30 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
 /* ---- Assessment ---------------------------------------------------------- */
 
 function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
+  const complexity = caseItem.complexity;
+  const displayedComplexityScore = complexity?.caseComplexityScore ?? complexity?.score ?? 0;
   return (
     <FormGrid cols={2}>
       <div className="space-y-4">
         <FormSection title="Case Scoring — Component A (Complexity Classifier)">
-          {caseItem.complexity ? (
+          {complexity ? (
             <>
               <div className="py-1">
                 <p className="mb-1 text-[12px] text-muted">Assessment scoring</p>
-                <ScoreBar band={caseItem.complexity.band} score={caseItem.complexity.score} />
+                <ScoreBar band={complexity.band} score={displayedComplexityScore} />
               </div>
               <FieldRow label="Reason code" locked>
-                {caseItem.complexity.reasonCode}
+                {formatComplexityReason(
+                  displayedComplexityScore,
+                  complexity.applicationComplexityScore,
+                  complexity.clinicalComplexityScore,
+                  complexity.driverFactors
+                )}
               </FieldRow>
-              {caseItem.complexity.driverFactors.length ? (
+              {complexity.driverFactors.length ? (
                 <FieldRow label="Driver factors" locked>
                   <ul className="list-disc space-y-0.5 pl-4">
-                    {caseItem.complexity.driverFactors.map((f) => (
+                    {complexity.driverFactors.map((f) => (
                       <li key={f}>{f}</li>
                     ))}
                   </ul>
@@ -239,6 +250,25 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
               <FieldRow label="Scoring engine" locked>
                 {caseItem.provider === "gemini" ? "Gemini (live LLM)" : "Deterministic rule-based fallback"}
               </FieldRow>
+              <FieldRow label="Application complexity" locked>
+                {complexity.applicationComplexityScore}/10
+              </FieldRow>
+              <FieldRow label="Clinical complexity" locked>
+                {complexity.clinicalComplexityScore}/10
+              </FieldRow>
+              <FieldRow label="Final case complexity" locked>
+                {displayedComplexityScore}/10
+              </FieldRow>
+              <FieldRow label="Complexity confidence" locked>
+                {Math.round(complexity.complexityConfidence * 100)}%
+              </FieldRow>
+              {complexity.complexityEvidence.length ? (
+                <FieldRow label="Clinical complexity evidence" locked>
+                  <ul className="list-disc space-y-0.5 pl-4">
+                    {complexity.complexityEvidence.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </FieldRow>
+              ) : null}
             </>
           ) : (
             <p className="text-[13px] text-muted">Not scored yet.</p>
@@ -246,28 +276,15 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
         </FormSection>
 
         <FormSection title="Basic Information">
-          <FieldRow label="Applicant" locked>
-            {caseItem.applicantName}
-          </FieldRow>
-          <FieldRow label="Age" locked>
-            {caseItem.age}
-          </FieldRow>
-          <FieldRow label="Occupation" locked>
-            {caseItem.occupation}
-          </FieldRow>
-          <FieldRow label="Product line" locked>
-            {caseItem.productLine}
-          </FieldRow>
-          <FieldRow label="Sum Assured" locked>
-            ${caseItem.sumAssured.toLocaleString("en-US")}
-          </FieldRow>
-          <FieldRow label="Medical history" locked>
-            {caseItem.medicalHistory || <span className="text-muted">—</span>}
-          </FieldRow>
-          <FieldRow label="Disclosures" locked>
-            {caseItem.disclosures || <span className="text-muted">—</span>}
-          </FieldRow>
+          <FieldRow label="Applicant" locked>{caseItem.applicantName}</FieldRow>
+          <FieldRow label="Age" locked>{caseItem.age}</FieldRow>
+          <FieldRow label="Occupation" locked>{caseItem.occupation}</FieldRow>
+          <FieldRow label="Product line" locked>{caseItem.productLine}</FieldRow>
+          <FieldRow label="Sum Assured" locked>${caseItem.sumAssured.toLocaleString("en-US")}</FieldRow>
+          <FieldRow label="Medical history" locked>{caseItem.medicalHistory || <span className="text-muted">—</span>}</FieldRow>
+          <FieldRow label="Disclosures" locked>{caseItem.disclosures || <span className="text-muted">—</span>}</FieldRow>
         </FormSection>
+
       </div>
 
       <div className="space-y-4">
@@ -291,7 +308,9 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
               {caseItem.ner.specialtiesRequired.join(", ")}
             </FieldRow>
           ) : null}
+          {caseItem.ner ? <FieldRow label="NER confidence" locked>{Math.round(caseItem.ner.confidence * 100)}%</FieldRow> : null}
         </FormSection>
+        {caseItem.documentQuality ? <DocumentQualitySection evaluation={caseItem.documentQuality} /> : null}
 
         {caseItem.missingFields.length > 0 ? (
           <FormSection title="Phase 1 — Completeness Check" className="border-l-2 border-l-udamber">
@@ -316,7 +335,118 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
           </FormSection>
         )}
       </div>
+
     </FormGrid>
+  );
+}
+
+function DocumentQualitySection({ evaluation }: { evaluation: NonNullable<UnderwritingCase["documentQuality"]> }) {
+  const passed = evaluation.validationStatus === "PASSED";
+  // Cases saved by older builds do not have the newer explainability arrays. Keep old localStorage
+  // records viewable after the evaluator schema evolves.
+  const matchedEvidence = evaluation.matchedEvidence ?? [];
+  const extractedEvidence = evaluation.extractedEvidence ?? [];
+  const readabilityProblems = evaluation.readabilityProblems ?? [];
+  const scoreBreakdown = evaluation.scoreBreakdown ?? [];
+  const scoreAdjustments = scoreBreakdown.filter((item) => /penalt|cap|adjustment/i.test(item.dimension));
+  const fieldEvaluations = evaluation.fieldEvaluations ?? [];
+  const semanticMatchScore = evaluation.semanticMatchScore ?? 0;
+  const contradictions = ((evaluation.contradictions ?? []) as unknown[]).map((item) =>
+    typeof item === "string" ? { code: "INTERNAL_CONTRADICTION", message: item, penalty: 0, sourceFields: [] } : item as { code: string; message: string; penalty: number; sourceFields: string[] }
+  );
+  return (
+    <FormSection title="Document Quality & Validity Gate" className={passed ? "border-l-2 border-l-udgreen" : "border-l-2 border-l-udred"}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className={`text-[17px] font-semibold ${passed ? "text-udgreen" : "text-udred"}`}>
+            {evaluation.score}/10 · {evaluation.validationStatus}
+          </p>
+          <p className="text-[12px] text-muted">Detected profile: {evaluation.detectedMedicalProfile}</p>
+        </div>
+        <span className={`rounded px-2 py-1 text-[11px] font-semibold ${passed ? "bg-green-50 text-udgreen" : "bg-red-50 text-udred"}`}>
+          {evaluation.route === "AUTO_ASSIGN" ? "May continue to assignment" : "Pool Queue required"}
+        </span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] md:grid-cols-4">
+        <span>Completeness: <strong>{evaluation.completenessScore}/10</strong></span>
+        <span>Consistency: <strong>{evaluation.consistencyScore}/10</strong></span>
+        <span>Readability: <strong>{evaluation.readabilityScore}/10</strong></span>
+        <span>Confidence: <strong>{Math.round(evaluation.evaluatorConfidence * 100)}%</strong></span>
+        <span>Semantic match: <strong>{Math.round(semanticMatchScore * 100)}%</strong></span>
+      </div>
+      {fieldEvaluations.length ? (
+        <FieldRow label="Field status" locked>
+          <div className="grid gap-1">
+            {fieldEvaluations.map((item) => (
+              <div className="rounded bg-slate-50 px-2 py-1" key={item.field}>
+                <strong>{item.label}: {item.status}</strong> <span className="text-muted">({item.points} point) — {item.reason}</span>
+              </div>
+            ))}
+          </div>
+        </FieldRow>
+      ) : null}
+      {evaluation.completeFields?.length ? <FieldRow label="Complete fields" locked>{evaluation.completeFields.join(", ")}</FieldRow> : null}
+      {evaluation.partialFields?.length ? <FieldRow label="Partial / incomplete fields" locked>{evaluation.partialFields.join(", ")}</FieldRow> : null}
+      {evaluation.missingFields.length ? (
+        <FieldRow label="Missing fields" locked>{evaluation.missingFields.join(", ")}</FieldRow>
+      ) : null}
+      {evaluation.notApplicableFields?.length ? <FieldRow label="Not applicable fields" locked>{evaluation.notApplicableFields.join(", ")}</FieldRow> : null}
+      {contradictions.length ? (
+        <FieldRow label="Contradictions / review flags" locked>
+          <ul className="list-disc space-y-0.5 pl-4 text-udred">
+            {contradictions.map((item) => <li key={`${item.code}-${item.message}`}>{item.code}: {item.message} (-{item.penalty}){item.sourceFields.length ? ` [${item.sourceFields.join(", ")}]` : ""}</li>)}
+          </ul>
+        </FieldRow>
+      ) : null}
+      <FieldRow label="Matched evidence" locked>
+        {evaluation.matchedReferenceFields.join(", ") || "No reliable reference match"}
+      </FieldRow>
+      {matchedEvidence.length ? (
+        <FieldRow label="Profile evidence" locked>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {matchedEvidence.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </FieldRow>
+      ) : null}
+      {evaluation.semanticEvidence?.length ? (
+        <FieldRow label="Semantic evidence" locked>
+          <ul className="list-disc space-y-0.5 pl-4 text-[12px]">
+            {evaluation.semanticEvidence.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </FieldRow>
+      ) : null}
+      {evaluation.reasonCodes?.length ? (
+        <FieldRow label="Reason codes" locked>
+          {evaluation.reasonCodes.join(", ")}
+        </FieldRow>
+      ) : null}
+      {extractedEvidence.length ? (
+        <FieldRow label="Extracted evidence" locked>
+          <ul className="list-disc space-y-0.5 pl-4 text-[12px]">
+            {extractedEvidence.slice(0, 8).map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </FieldRow>
+      ) : null}
+      {readabilityProblems.length ? (
+        <FieldRow label="Readability problems" locked>
+          <span className="text-udred">{readabilityProblems.join(" ")}</span>
+        </FieldRow>
+      ) : null}
+      <FieldRow label="Score calculation" locked>
+        <div className="grid gap-0.5 text-[12px]">
+          <div className="flex justify-between gap-3"><span>Base dimension score</span><strong>{evaluation.baseScore ?? "—"}</strong></div>
+          {scoreAdjustments.map((item) => (
+            <div className="flex justify-between gap-3" key={item.dimension}>
+              <span>{item.dimension}</span><strong>{item.points > 0 ? "+" : ""}{item.points}</strong>
+            </div>
+          ))}
+          <div className="mt-1 border-t border-line pt-1 font-semibold">Final document score: {evaluation.score}/10</div>
+        </div>
+      </FieldRow>
+      <FieldRow label="Evaluator engine" locked>
+        {evaluation.engineUsed === "gemini" ? "Gemini" : "Deterministic fallback"}
+      </FieldRow>
+    </FormSection>
   );
 }
 
@@ -580,6 +710,8 @@ function DocumentsTab({ extractions, ingestion }: { extractions: DocumentExtract
                 >
                   {doc.provider === "gemini" ? "Gemini vision" : "Offline stub"}
                 </span>
+                {doc.source ? <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-muted">Source: {doc.source}</span> : null}
+                {doc.documentSessionId ? <span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-muted">Session: {doc.documentSessionId.slice(-8)}</span> : null}
               </div>
               <p className="mt-1.5 text-[12px] text-muted">{doc.summary}</p>
               {chips.length ? (
