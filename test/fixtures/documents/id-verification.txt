@@ -1,0 +1,9 @@
+IDENTITY VERIFICATION RECORD
+
+Full name: Nguyen Van An
+Date of birth: 1996-11-02      Age: 29
+Marital status: Single
+Nationality: Vietnamese        Document: Passport (verified)
+Occupation on file: Software Engineer
+
+KYC check: PASSED. Address confirmed against a utility bill.

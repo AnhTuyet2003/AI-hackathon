@@ -3,7 +3,9 @@
 import { seedCases } from "./seed";
 import type { AuditEvent, UnderwritingCase } from "./types";
 
-const CASES_KEY = "ai-ud-cases";
+// Bump the suffix whenever the seed shape/content changes so browsers that already cached an older
+// demo dataset pick up the new one instead of being stuck on stale localStorage.
+const CASES_KEY = "ai-ud-cases-v3";
 
 export function getCases(): UnderwritingCase[] {
   if (typeof window === "undefined") return seedCases;

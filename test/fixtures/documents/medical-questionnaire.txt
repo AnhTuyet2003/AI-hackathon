@@ -1,0 +1,14 @@
+LIFE INSURANCE - HEALTH QUESTIONNAIRE
+
+Applicant: Dang Thi Thu           Age: 51        Sex: F
+Height: 164 cm    Weight: 79 kg    BMI: 29.4
+
+1. Do you smoke tobacco?                              NO
+2. Any diagnosed chronic condition?                   YES
+   -> Type 2 Diabetes, insulin-dependent, diagnosed 2016.
+      Last HbA1c 7.8%. Under endocrinology follow-up.
+3. Regular medication?                                YES (insulin, Metformin)
+4. Dangerous sports or hobbies?                       NO
+5. Foreign travel > 3 months in the next year?        NO
+
+Declared by the applicant as true and complete.

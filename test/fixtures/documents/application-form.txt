@@ -1,0 +1,15 @@
+NEW BUSINESS APPLICATION FORM
+
+Applicant (Praemienzahler)
+  Vorname / first name .......  An
+  Name / surname ............  Nguyen Van
+  Anrede ...................  Herr
+  Geburtsdatum .............  1996-11-02   (Age 29)
+  Beruf / occupation .......  Software Engineer
+  Marital status ...........  single
+
+Product line ...............  Individual Life
+Sum Assured requested ......  USD 80,000
+CHF (brutto) annual earning   85,000
+
+Supporting documents attached: ID verification, health questionnaire.

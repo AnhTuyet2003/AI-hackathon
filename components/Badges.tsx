@@ -16,7 +16,7 @@ export function StatusBadge({ status }: { status: CaseStatus }) {
     RESOLVED: "Resolved"
   };
 
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-black ${styles[status]}`}>{labels[status]}</span>;
+  return <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold ${styles[status]}`}>{labels[status]}</span>;
 }
 
 export function ComplexityBadge({ band, score }: { band: ComplexityBand; score: number }) {
@@ -26,5 +26,9 @@ export function ComplexityBadge({ band, score }: { band: ComplexityBand; score: 
     high: "bg-red-50 text-udred"
   };
 
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-black ${styles[band]}`}>{band.toUpperCase()} -- SCORE {score}</span>;
+  return (
+    <span className={`inline-block rounded px-2 py-0.5 text-[11px] font-semibold ${styles[band]}`}>
+      {band.toUpperCase()} · {score}
+    </span>
+  );
 }
