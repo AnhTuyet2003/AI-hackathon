@@ -31,11 +31,11 @@ export function setRole(role: Role) {
   window.dispatchEvent(new CustomEvent(ROLE_EVENT));
 }
 
-export const NAV_ITEMS: { href: string; label: string; roles: Role[] }[] = [
-  { href: "/", label: "Dashboard", roles: ["admin"] },
-  { href: "/pool-queue", label: "Pool Queue", roles: ["admin"] },
-  { href: "/audit", label: "Audit Log", roles: ["admin"] },
-  { href: "/submit", label: "Submit Application", roles: ["user", "admin"] }
+export const NAV_ITEMS: { href: string; label: string; roles: Role[]; group: string }[] = [
+  { href: "/", label: "Dashboard", roles: ["admin"], group: "My Work" },
+  { href: "/submit", label: "Submit Application", roles: ["user", "admin"], group: "Requests" },
+  { href: "/pool-queue", label: "Pool Queue", roles: ["admin"], group: "Requests" },
+  { href: "/audit", label: "Audit Log", roles: ["admin"], group: "Governance" }
 ];
 
 export function canAccess(pathname: string, role: Role): boolean {

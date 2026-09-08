@@ -12,8 +12,9 @@
 
 body {
   margin: 0;
-  background: #f6f7f9;
+  background: #f3f2f1;
   color: #18212f;
+  font-size: 13px;
 }
 
 button,
@@ -24,31 +25,84 @@ textarea {
 }
 
 @layer components {
+  /* ---- surfaces ------------------------------------------------------------ */
   .shell-card {
-    @apply rounded-lg border border-line bg-white shadow-ud;
+    @apply rounded-md border border-line bg-white shadow-ud;
   }
 
   .eyebrow {
-    @apply text-xs font-extrabold uppercase tracking-[0.08em] text-udblue;
+    @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-muted;
   }
 
+  /* ---- buttons ----------------------------------------------------------- */
   .primary-button {
-    @apply rounded-lg bg-udblue px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#163f6e] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-md bg-udblue px-3.5 py-2 text-[13px] font-semibold text-white transition hover:bg-[#1d4e83] disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .ghost-button {
-    @apply rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply rounded-md border border-line bg-white px-3.5 py-2 text-[13px] font-semibold text-ink transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .danger-button {
-    @apply rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-udred transition hover:bg-red-100;
+    @apply rounded-md border border-red-200 bg-red-50 px-3.5 py-2 text-[13px] font-semibold text-udred transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* ---- form fields ----------------------------------------------------- */
   .field-label {
-    @apply grid gap-2 text-xs font-bold text-muted;
+    @apply grid gap-1 text-[11px] font-semibold text-muted;
   }
 
   .field-input {
-    @apply block w-full min-h-10 rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none transition focus:border-udblue focus:ring-4 focus:ring-blue-100;
+    @apply block w-full min-h-9 rounded-md border border-line bg-white px-2.5 py-1.5 text-[13px] text-ink outline-none transition focus:border-udblue focus:ring-2 focus:ring-blue-100;
+  }
+
+  /* ---- model-driven chrome ------------------------------------------------ */
+  .command-bar {
+    @apply flex flex-wrap items-center gap-0.5 border-b border-line bg-white px-2 py-1;
+  }
+
+  .command-button {
+    @apply inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-[13px] font-medium text-ink transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .command-button-primary {
+    @apply inline-flex items-center gap-1.5 rounded bg-udblue px-2.5 py-1.5 text-[13px] font-semibold text-white transition hover:bg-[#1d4e83] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .tab-bar {
+    @apply flex flex-wrap gap-1 overflow-x-auto border-b border-line bg-white px-2;
+  }
+
+  .tab-item {
+    @apply relative whitespace-nowrap px-3 py-2.5 text-[13px] font-medium text-muted transition hover:text-ink;
+  }
+
+  .tab-item-active {
+    @apply text-udblue after:absolute after:inset-x-2 after:bottom-0 after:h-[2px] after:bg-udblue after:content-[''];
+  }
+
+  /* ---- form sections & label/value rows --------------------------------- */
+  .form-section {
+    @apply rounded-md border border-line bg-white p-4;
+  }
+
+  .form-section-title {
+    @apply mb-3 border-b border-line pb-2 text-[13px] font-semibold text-ink;
+  }
+
+  .field-row {
+    @apply grid grid-cols-[minmax(110px,36%)_1fr] items-start gap-3 py-[7px] text-[13px];
+  }
+
+  .field-row + .field-row {
+    @apply border-t border-line/60;
+  }
+
+  .field-row-label {
+    @apply flex items-center gap-1 text-[12px] text-muted;
+  }
+
+  .field-row-value {
+    @apply text-[13px] text-ink;
   }
 }

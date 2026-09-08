@@ -16,7 +16,7 @@ const config: Config = {
         udpurple: "#5b3ea6"
       },
       boxShadow: {
-        ud: "0 16px 40px rgba(28, 39, 52, 0.10)"
+        ud: "0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.10)"
       }
     }
   },

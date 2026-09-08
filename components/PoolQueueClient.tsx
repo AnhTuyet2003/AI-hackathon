@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ComplexityBadge } from "@/components/Badges";
+import { CommandBar, CommandButton, FormSection, RecordHeader } from "@/components/ModelDriven";
 import { getCases, saveCases } from "@/lib/local-store";
 import { underwriterRegistry } from "@/lib/underwriters";
 import type { UnderwritingCase } from "@/lib/types";
@@ -39,47 +40,51 @@ export function PoolQueueClient() {
   }
 
   return (
-    <div>
-      <header>
-        <p className="eyebrow">Escalation Policy</p>
-        <h1 className="mt-1 text-3xl font-black">Pool Queue -- Operations Manager override</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Cases land here when no underwriter passes all gating policies (e.g. a score-10 case while every qualified Medical/Senior underwriter is over
-          capacity or offline). The Ops Manager picks a manual override here.
-        </p>
-      </header>
+    <>
+      <CommandBar>
+        <Link className="command-button" href="/">
+          <span aria-hidden className="text-[15px] leading-none">←</span>
+          Dashboard
+        </Link>
+        <CommandButton icon="⟳" onClick={() => setCases(getCases())}>
+          Refresh
+        </CommandButton>
+      </CommandBar>
 
-      <section className="mt-6 grid gap-4">
+      <RecordHeader
+        recordType="Escalation Policy"
+        title="Pool Queue — Operations Manager override"
+        subtitle="Cases land here when no underwriter passes all gating policies (e.g. a score-10 case while every qualified Medical/Senior underwriter is over capacity or offline). The Ops Manager picks a manual override here."
+        facts={[{ label: "Escalated cases", value: pooled.length }]}
+      />
+
+      <div className="space-y-4 p-4 md:p-6">
         {pooled.length === 0 ? (
-          <div className="shell-card p-6 text-sm text-muted">Pool Queue is empty -- no escalated cases right now.</div>
+          <FormSection title="Queue">
+            <p className="text-[13px] text-muted">Pool Queue is empty — no escalated cases right now.</p>
+          </FormSection>
         ) : null}
 
         {pooled.map((c) => (
-          <div className="shell-card p-5" key={c.id}>
+          <FormSection key={c.id} title={`${c.id} — ${c.applicantName}`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <Link className="text-sm font-black text-udblue hover:underline" href={`/cases/${c.id}`}>
-                  {c.id}
-                </Link>
-                <h2 className="mt-1 text-xl font-black">{c.applicantName}</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Sum Assured ${c.sumAssured.toLocaleString("en-US")} | {c.occupation}
-                </p>
-              </div>
+              <p className="text-[13px] text-muted">
+                Sum Assured ${c.sumAssured.toLocaleString("en-US")} · {c.occupation}
+              </p>
               {c.complexity ? <ComplexityBadge band={c.complexity.band} score={c.complexity.score} /> : null}
             </div>
 
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-udred">{c.match?.rationale}</div>
+            <div className="mt-3 rounded border-l-2 border-udred bg-red-50 p-2.5 text-[13px] text-udred">{c.match?.rationale}</div>
 
-            <div className="mt-4 flex flex-wrap items-end gap-3">
+            <div className="mt-3 flex flex-wrap items-end gap-3">
               <label className="field-label">
                 Manually assign underwriter
                 <select
-                  className="field-input"
+                  className="field-input min-w-[240px]"
                   onChange={(e) => setSelections((prev) => ({ ...prev, [c.id]: e.target.value }))}
                   value={selections[c.id] ?? ""}
                 >
-                  <option value="">Select underwriter...</option>
+                  <option value="">Select underwriter…</option>
                   {underwriterRegistry.map((uw) => (
                     <option key={uw.id} value={uw.id}>
                       {uw.name} ({uw.tier}, queue {uw.currentQueueLoad})
@@ -87,13 +92,21 @@ export function PoolQueueClient() {
                   ))}
                 </select>
               </label>
-              <button className="primary-button" disabled={!selections[c.id] || busyId === c.id} onClick={() => void override(c)} type="button">
-                {busyId === c.id ? "Assigning..." : "Confirm manual override"}
+              <button
+                className="primary-button"
+                disabled={!selections[c.id] || busyId === c.id}
+                onClick={() => void override(c)}
+                type="button"
+              >
+                {busyId === c.id ? "Assigning…" : "Confirm manual override"}
               </button>
+              <Link className="ghost-button" href={`/cases/${c.id}`}>
+                Open case
+              </Link>
             </div>
-          </div>
+          </FormSection>
         ))}
-      </section>
-    </div>
+      </div>
+    </>
   );
 }

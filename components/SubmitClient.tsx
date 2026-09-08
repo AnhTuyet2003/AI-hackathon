@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { CommandBar, CommandButton, CommandDivider, FormGrid, FormSection, RecordHeader } from "@/components/ModelDriven";
 import { Spinner } from "@/components/Spinner";
 import { getCases, saveCases } from "@/lib/local-store";
 import { buildReconcileSuggestions, medicalHistoryAddition, type FieldSuggestion } from "@/lib/reconcile";
@@ -13,6 +14,7 @@ const PRODUCT_LINES = ["Individual Life", "Group Life", "Critical Illness", "Hea
 const ACCEPTED_TYPES = ["application/pdf", "image/png", "image/jpeg", "text/plain"];
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 4_000_000;
+const FORM_ID = "new-application-form";
 
 type PendingFile = { name: string; mimeType: string; dataBase64: string };
 type Decision = { choice: "doc" | "mine"; from: string; to: string; source: string };
@@ -195,135 +197,160 @@ export function SubmitClient() {
   }
 
   return (
-    <div>
-      <header>
-        <p className="eyebrow">Phase 1 -- Submission</p>
-        <h1 className="mt-1 text-3xl font-black">Submit New Business Application</h1>
-        <p className="mt-2 text-sm text-muted">
-          Attaching a document runs OCR immediately. Review any differences below, decide which value is right, then submit -- the pipeline
-          scores the case on the reconciled data.
-        </p>
-      </header>
-
-      <div className="mt-4 flex flex-wrap gap-2">
+    <>
+      <CommandBar>
+        <CommandButton form={FORM_ID} icon="✓" primary type="submit" disabled={submitting || extracting}>
+          {submitting ? "Running AI pipeline…" : extracting ? "Reading documents…" : "Submit Application"}
+        </CommandButton>
+        <CommandDivider />
+        <span className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Fill demo case</span>
         {submitPresets.map(({ label, input }) => (
-          <button className="ghost-button" disabled={submitting} key={label} onClick={() => applyPreset(input)} type="button">
-            Fill demo case: {label}
-          </button>
+          <CommandButton key={label} disabled={submitting} onClick={() => applyPreset(input)} icon="＋">
+            {label}
+          </CommandButton>
         ))}
-      </div>
+      </CommandBar>
 
-      <form className="mt-6 grid gap-5 shell-card p-6" onSubmit={onSubmit}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="field-label">
-            Applicant name
-            <input className="field-input" onChange={(e) => update("applicantName", e.target.value)} required value={form.applicantName} />
-          </label>
-          <label className="field-label">
-            Occupation
-            <input className="field-input" onChange={(e) => update("occupation", e.target.value)} required value={form.occupation} />
-          </label>
-          <label className="field-label">
-            Age
-            <input className="field-input" min={0} onChange={(e) => update("age", Number(e.target.value))} required type="number" value={form.age} />
-          </label>
-          <label className="field-label">
-            Sum Assured (USD)
-            <input className="field-input" min={0} onChange={(e) => update("sumAssured", Number(e.target.value))} required type="number" value={form.sumAssured} />
-          </label>
-          <label className="field-label">
-            Product line
-            <select className="field-input" onChange={(e) => update("productLine", e.target.value)} value={form.productLine}>
-              {PRODUCT_LINES.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field-label">
-            Supporting documents (PDF / JPG / PNG / TXT, max {MAX_FILES})
-            <input
-              accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain"
-              className="field-input"
-              disabled={submitting}
-              multiple
-              onChange={onFilesPicked}
-              type="file"
-            />
-          </label>
-        </div>
+      <RecordHeader
+        recordType="Phase 1 — Submission"
+        title="New Business Application"
+        status="Draft"
+        subtitle="Attaching a document runs OCR immediately. Review any differences, decide which value is right, then submit — the pipeline scores the case on the reconciled data."
+      />
 
-        {files.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {files.map((f) => (
-              <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-ink" key={f.name}>
-                {f.name}
-                <button
-                  aria-label={`Remove ${f.name}`}
-                  className="text-muted hover:text-udred"
+      <div className="p-4 md:p-6">
+        {/* The command-bar Submit button targets this form via the form attribute. */}
+        <form className="space-y-4" id={FORM_ID} onSubmit={onSubmit}>
+          <button type="submit" hidden />
+
+          <FormSection title="Applicant & Policy">
+            <FormGrid cols={2}>
+              <label className="field-label">
+                Applicant name
+                <input className="field-input" onChange={(e) => update("applicantName", e.target.value)} required value={form.applicantName} />
+              </label>
+              <label className="field-label">
+                Occupation
+                <input className="field-input" onChange={(e) => update("occupation", e.target.value)} required value={form.occupation} />
+              </label>
+              <label className="field-label">
+                Age
+                <input
+                  className="field-input"
+                  min={0}
+                  onChange={(e) => update("age", Number(e.target.value))}
+                  required
+                  type="number"
+                  value={form.age}
+                />
+              </label>
+              <label className="field-label">
+                Sum Assured (USD)
+                <input
+                  className="field-input"
+                  min={0}
+                  onChange={(e) => update("sumAssured", Number(e.target.value))}
+                  required
+                  type="number"
+                  value={form.sumAssured}
+                />
+              </label>
+              <label className="field-label">
+                Product line
+                <select className="field-input" onChange={(e) => update("productLine", e.target.value)} value={form.productLine}>
+                  {PRODUCT_LINES.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field-label">
+                Supporting documents (PDF / JPG / PNG / TXT, max {MAX_FILES})
+                <input
+                  accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain"
+                  className="field-input"
                   disabled={submitting}
-                  onClick={() => removeFile(f.name)}
-                  type="button"
-                >
-                  x
-                </button>
-              </span>
-            ))}
-            {extracting ? (
-              <span className="inline-flex items-center gap-2 text-xs font-bold text-muted">
-                <Spinner className="h-3.5 w-3.5" /> Reading documents...
-              </span>
+                  multiple
+                  onChange={onFilesPicked}
+                  type="file"
+                />
+              </label>
+            </FormGrid>
+
+            {files.length > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {files.map((f) => (
+                  <span className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-ink" key={f.name}>
+                    {f.name}
+                    <button
+                      aria-label={`Remove ${f.name}`}
+                      className="text-muted hover:text-udred"
+                      disabled={submitting}
+                      onClick={() => removeFile(f.name)}
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {extracting ? (
+                  <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-muted">
+                    <Spinner className="h-3.5 w-3.5" /> Reading documents…
+                  </span>
+                ) : null}
+              </div>
             ) : null}
-          </div>
-        ) : null}
+          </FormSection>
 
-        {extractions.length > 0 && !extracting ? (
-          <ReconcilePanel
-            addedDisc={addedDisc}
-            addedMed={addedMed}
-            decisions={decisions}
-            disclosuresText={suggestions.disclosuresText}
-            extractions={extractions}
-            findings={suggestions.findings}
-            onAddToDisclosures={addFindingsToDisclosures}
-            onAddToMedicalHistory={addFindingsToMedicalHistory}
-            onKeepMine={keepMine}
-            onUndo={undoDecision}
-            onUseDoc={useDocValue}
-            openFields={openFields}
-          />
-        ) : null}
+          {extractions.length > 0 && !extracting ? (
+            <ReconcilePanel
+              addedDisc={addedDisc}
+              addedMed={addedMed}
+              decisions={decisions}
+              disclosuresText={suggestions.disclosuresText}
+              extractions={extractions}
+              findings={suggestions.findings}
+              onAddToDisclosures={addFindingsToDisclosures}
+              onAddToMedicalHistory={addFindingsToMedicalHistory}
+              onKeepMine={keepMine}
+              onUndo={undoDecision}
+              onUseDoc={useDocValue}
+              openFields={openFields}
+            />
+          ) : null}
 
-        <label className="field-label">
-          Medical history / doctor notes
-          <textarea className="field-input min-h-24" onChange={(e) => update("medicalHistory", e.target.value)} value={form.medicalHistory} />
-        </label>
+          <FormSection title="Unstructured Data">
+            <label className="field-label">
+              Medical history / doctor notes
+              <textarea
+                className="field-input min-h-24"
+                onChange={(e) => update("medicalHistory", e.target.value)}
+                value={form.medicalHistory}
+              />
+            </label>
+            <label className="field-label mt-3">
+              Financial / other disclosures
+              <textarea className="field-input min-h-20" onChange={(e) => update("disclosures", e.target.value)} value={form.disclosures} />
+            </label>
+          </FormSection>
 
-        <label className="field-label">
-          Financial / other disclosures
-          <textarea className="field-input min-h-20" onChange={(e) => update("disclosures", e.target.value)} value={form.disclosures} />
-        </label>
+          {openConflicts.length > 0 ? (
+            <p className="rounded border-l-2 border-udamber bg-amber-50 p-2.5 text-[13px] font-semibold text-udamber">
+              {openConflicts.length} field(s) still differ from the documents. Align them above, or submit with your values — the mismatch is
+              recorded in the audit trail either way.
+            </p>
+          ) : null}
 
-        {openConflicts.length > 0 ? (
-          <p className="rounded-lg border-l-4 border-udamber bg-amber-50 p-3 text-sm font-semibold text-udamber">
-            {openConflicts.length} field(s) still differ from the documents. Align them above, or submit with your values -- the mismatch is
-            recorded in the audit trail either way.
-          </p>
-        ) : null}
+          {error ? <p className="text-[13px] font-semibold text-udred">{error}</p> : null}
 
-        {error ? <p className="text-sm font-bold text-udred">{error}</p> : null}
-
-        <button
-          className="primary-button inline-flex items-center gap-2 justify-self-start"
-          disabled={submitting || extracting}
-          type="submit"
-        >
-          {submitting ? <Spinner /> : null}
-          {submitting ? "Running AI pipeline..." : extracting ? "Reading documents..." : "Submit Application"}
-        </button>
-      </form>
-    </div>
+          <button className="primary-button inline-flex items-center gap-2" disabled={submitting || extracting} type="submit">
+            {submitting ? <Spinner /> : null}
+            {submitting ? "Running AI pipeline…" : extracting ? "Reading documents…" : "Submit Application"}
+          </button>
+        </form>
+      </div>
+    </>
   );
 }
 
@@ -357,17 +384,16 @@ function ReconcilePanel({
   const decidedEntries = Object.entries(decisions);
 
   return (
-    <section className="rounded-lg border border-udblue/30 bg-blue-50/40 p-5">
-      <p className="eyebrow">Data Ingestion Engine -- reconcile</p>
-      <h2 className="mt-1 text-lg font-black">Documents read. Confirm the details before submitting.</h2>
+    <FormSection title="Data Ingestion Engine — reconcile" className="border-l-2 border-l-udblue">
+      <p className="text-[13px] text-muted">Documents read. Confirm the details before submitting.</p>
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-2">
         {extractions.map((e) => (
-          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-bold" key={e.fileName}>
+          <span className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1 text-[11px] font-semibold" key={e.fileName}>
             {e.fileName}
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                e.provider === "gemini" ? "bg-blue-100 text-udblue" : "bg-amber-100 text-udamber"
+              className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                e.provider === "gemini" ? "bg-blue-50 text-udblue" : "bg-amber-50 text-udamber"
               }`}
             >
               {e.provider === "gemini" ? "Gemini" : "stub"}
@@ -377,28 +403,31 @@ function ReconcilePanel({
       </div>
 
       {openFields.length > 0 ? (
-        <div className="mt-4 grid gap-2">
+        <div className="mt-3 grid gap-2">
           {openFields.map((s) => (
-            <div className="grid gap-2 rounded-lg border border-line bg-white p-3 text-sm md:grid-cols-[1fr_auto] md:items-center" key={s.key}>
+            <div
+              className="grid gap-2 rounded border border-line bg-slate-50 p-2.5 text-[13px] md:grid-cols-[1fr_auto] md:items-center"
+              key={s.key}
+            >
               <div>
-                <span className="font-bold">{s.label}</span>{" "}
+                <span className="font-semibold">{s.label}</span>{" "}
                 {s.kind === "conflict" ? (
                   <span className="text-muted">
-                    you: <span className="font-semibold text-ink">{s.formValue}</span> &middot; document:{" "}
-                    <span className="font-semibold text-ink">{s.docValue}</span>
+                    you: <span className="font-medium text-ink">{s.formValue}</span> · document:{" "}
+                    <span className="font-medium text-ink">{s.docValue}</span>
                   </span>
                 ) : (
                   <span className="text-muted">
-                    not entered &middot; document: <span className="font-semibold text-ink">{s.docValue}</span>
+                    not entered · document: <span className="font-medium text-ink">{s.docValue}</span>
                   </span>
                 )}
-                <span className="ml-1 text-xs text-muted">({s.source})</span>
+                <span className="ml-1 text-[11px] text-muted">({s.source})</span>
               </div>
               <div className="flex gap-2">
-                <button className="primary-button px-3 py-1.5 text-xs" onClick={() => onUseDoc(s)} type="button">
+                <button className="primary-button px-2.5 py-1 text-[12px]" onClick={() => onUseDoc(s)} type="button">
                   {s.kind === "conflict" ? `Use ${s.docValue}` : "Use document"}
                 </button>
-                <button className="ghost-button px-3 py-1.5 text-xs" onClick={() => onKeepMine(s)} type="button">
+                <button className="ghost-button px-2.5 py-1 text-[12px]" onClick={() => onKeepMine(s)} type="button">
                   {s.kind === "conflict" ? "Keep mine" : "Ignore"}
                 </button>
               </div>
@@ -408,11 +437,12 @@ function ReconcilePanel({
       ) : null}
 
       {decidedEntries.length > 0 ? (
-        <div className="mt-3 grid gap-1 text-xs text-muted">
+        <div className="mt-2 grid gap-1 text-[11px] text-muted">
           {decidedEntries.map(([key, d]) => (
             <div className="flex flex-wrap items-center gap-2" key={key}>
               <span>
-                <strong className="text-ink">{key}</strong>: {d.choice === "doc" ? `using document value "${d.to}"` : `keeping your value "${d.from}"`}
+                <strong className="text-ink">{key}</strong>:{" "}
+                {d.choice === "doc" ? `using document value "${d.to}"` : `keeping your value "${d.from}"`}
               </span>
               <button className="underline hover:text-ink" onClick={() => onUndo(key)} type="button">
                 undo
@@ -423,29 +453,24 @@ function ReconcilePanel({
       ) : null}
 
       {findings.length > 0 ? (
-        <div className="mt-4 rounded-lg border border-line bg-white p-3 text-sm">
-          <p className="font-bold">Medical findings in the documents</p>
+        <div className="mt-3 rounded border border-line bg-slate-50 p-2.5 text-[13px]">
+          <p className="font-semibold">Medical findings in the documents</p>
           <p className="mt-1 text-muted">{findings.join("; ")}.</p>
-          <button
-            className="ghost-button mt-2 px-3 py-1.5 text-xs"
-            disabled={addedMed}
-            onClick={onAddToMedicalHistory}
-            type="button"
-          >
+          <button className="ghost-button mt-2 px-2.5 py-1 text-[12px]" disabled={addedMed} onClick={onAddToMedicalHistory} type="button">
             {addedMed ? "Added to medical history" : "Add to medical history"}
           </button>
         </div>
       ) : null}
 
       {disclosuresText ? (
-        <div className="mt-3 rounded-lg border border-line bg-white p-3 text-sm">
-          <p className="font-bold">Financial note in the documents</p>
+        <div className="mt-2 rounded border border-line bg-slate-50 p-2.5 text-[13px]">
+          <p className="font-semibold">Financial note in the documents</p>
           <p className="mt-1 text-muted">{disclosuresText}</p>
-          <button className="ghost-button mt-2 px-3 py-1.5 text-xs" disabled={addedDisc} onClick={onAddToDisclosures} type="button">
+          <button className="ghost-button mt-2 px-2.5 py-1 text-[12px]" disabled={addedDisc} onClick={onAddToDisclosures} type="button">
             {addedDisc ? "Added to disclosures" : "Add to disclosures"}
           </button>
         </div>
       ) : null}
-    </section>
+    </FormSection>
   );
 }
