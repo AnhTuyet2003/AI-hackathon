@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "tsc --noEmit -p tsconfig.typecheck.json",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
-    "test": "tsx test/verify.mjs",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --runInBand --coverage",
     "make-docs": "node test/make-documents.mjs"
   },
   "dependencies": {
@@ -20,13 +22,15 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "autoprefixer": "^10.5.2",
+    "jest": "^30.0.0",
     "postcss": "^8.5.16",
     "tailwindcss": "^3.4.19",
-    "tsx": "^4.23.13",
+    "ts-jest": "^29.4.12",
     "typescript": "^5.9.3"
   },
   "overrides": {

@@ -21,12 +21,15 @@ for demo/test data — the running app reads from it too.
 ## Commands
 
 ```bash
-npm test            # replay fixtures through the pipeline, assert expected outcomes (exit 1 on drift)
+npm test            # run the Jest fixture suite with assertions (exit 1 on drift)
+npm run test:coverage # run Jest with coverage reporting
 npm run make-docs   # (re)build fixtures/documents/
 ```
 
-`verify.mjs` forces `GEMINI_API_KEY=""` and points the MCP solver at a dead address, so it
-exercises the deterministic rule-based + greedy engine and runs in a few seconds, fully offline.
+The Jest suite forces Gemini into fallback mode and mocks the MCP solver boundary, so it exercises
+the deterministic rule-based pipeline fully offline without depending on network timing. The
+legacy `verify.mjs` script still forces `GEMINI_API_KEY=""` and points the MCP solver at a dead
+address for a console-only replay.
 
 ## Coverage
 
