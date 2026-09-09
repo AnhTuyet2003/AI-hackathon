@@ -211,7 +211,8 @@ export function prepareIntake(
     return pool(c, "REQUIRED_FIELDS_FAILED", c.followUpMessage);
   }
 
-  const crossDocumentContradiction = findCrossDocumentContradiction(extractions);
+  const crossDocumentContradiction =
+    findCrossDocumentContradiction(extractions);
   if (crossDocumentContradiction) {
     return pool(
       c,
