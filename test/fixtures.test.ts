@@ -50,54 +50,14 @@ describe("AI-UD deterministic fixture pipeline", () => {
     mockSuccessfulSolver();
   });
 
-  it.each(applicationFixtures)(
-    "matches the expected outcome: \$key",
-    async (fixture) => {
-      const result = await runIntakePipeline(fixture.input);
-      const expectedStatus =
-        fixture.expected.status === "RESOLVED"
-          ? fixture.expected.decisionPath === "STP"
-            ? "ASSIGNED_STP"
-            : fixture.expected.decisionPath === "MANUAL"
-              ? "ASSIGNED_MANUAL"
-              : "POOL_QUEUE"
-          : fixture.expected.status;
-
-      expect(result.complexity?.band).toBe(fixture.expected.band);
-      expect(result.decisionPath).toBe(fixture.expected.decisionPath);
-      expect(result.status).toBe(expectedStatus);
-      expect(result.ner?.specialtiesRequired.slice().sort()).toEqual(
-        fixture.expected.specialties.slice().sort(),
-      );
-      expect(result.provider).toBe("fallback");
-      expect(
-        result.audit.some((event) =>
-          event.action.includes("deterministic fallback"),
-        ),
-      ).toBe(true);
-
-      if (fixture.expected.missingFields) {
-        expect(result.missingFields.slice().sort()).toEqual(
-          fixture.expected.missingFields.slice().sort(),
-        );
-      }
-    },
-  );
-
-  it("produces a concrete follow-up message for incomplete applications", async () => {
-    const fixture = applicationFixtures.find(
-      (item) => item.key === "incomplete-missing-history-and-docs",
-    );
-    expect(fixture).toBeDefined();
-
-    const result = await runIntakePipeline(fixture!.input);
-
-    expect(result.missingFields).toEqual([
-      "medical history / doctor notes",
-      "supporting documents",
-    ]);
-    expect(result.followUpMessage).toContain("medical history / doctor notes");
-    expect(result.followUpMessage).toContain("supporting documents");
+  it.each(applicationFixtures)("requires real medical evidence for legacy application $key", async fixture => {
+    const result=await runIntakePipeline(fixture.input);
+    expect(result.status).toBe("POOL_QUEUE");
+    expect(result.poolQueueReason).toBe("REQUIRED_FIELDS_FAILED");
+    expect(result.assigneeId).toBeNull();
+    expect(result.complexity).toBeNull();
+    expect(result.match).toBeNull();
+    expect(mockedSolver).not.toHaveBeenCalled();
   });
 });
 
@@ -124,12 +84,13 @@ describe("deterministic AI fixtures", () => {
 
 describe("policy fixture coverage", () => {
   const cleanComplexity: ComplexityResult = {
+    caseComplexityScore:2,applicationComplexityScore:2,clinicalComplexityScore:1,complexityConfidence:0.9,complexityEvidence:[],
     score: 2,
     band: "low",
     reasonCode: "Clean fixture",
     driverFactors: [],
   };
-  const noSpecialty: NERResult = { entities: [], specialtiesRequired: [] };
+  const noSpecialty: NERResult = { entities: [], specialtiesRequired: [], confidence:0.9 };
 
   it("passes an active underwriter with enough authority and capacity", () => {
     const underwriter = underwriterRegistry.find(
@@ -161,7 +122,7 @@ describe("policy fixture coverage", () => {
       entities: [
         { text: "Myocardial Infarction", specialization: "Cardiology" },
       ],
-      specialtiesRequired: ["Cardiology"],
+      specialtiesRequired: ["Cardiology"], confidence:0.9,
     };
     const highComplexity: ComplexityResult = {
       ...cleanComplexity,
@@ -198,8 +159,8 @@ describe("matching fallback", () => {
     ).runMatching(
       "APP-TEST",
       80_000,
-      { entities: [], specialtiesRequired: [] },
-      { score: 2, band: "low", reasonCode: "Clean", driverFactors: [] },
+      { entities: [], specialtiesRequired: [], confidence:0.9 },
+      { score: 2, band: "low", reasonCode: "Clean", driverFactors: [], caseComplexityScore:2,applicationComplexityScore:2,clinicalComplexityScore:1,complexityConfidence:0.9,complexityEvidence:[] },
     );
 
     expect(result.engine).toBe("greedy-fallback");

@@ -1,4 +1,10 @@
-export type CaseStatus = "PENDING" | "ASSIGNED_STP" | "ASSIGNED_MANUAL" | "POOL_QUEUE" | "RESOLVED";
+import type { CareEvidence, CareDecision } from "./care-routing";
+export type CaseStatus =
+  | "PENDING"
+  | "ASSIGNED_STP"
+  | "ASSIGNED_MANUAL"
+  | "POOL_QUEUE"
+  | "RESOLVED";
 export type ComplexityBand = "low" | "medium" | "high";
 export type DecisionPath = "STP" | "MANUAL" | "ESCALATED" | "POOL_QUEUE";
 export type AvailabilityStatus = "active" | "dnd" | "offline";
@@ -78,8 +84,20 @@ export type AuditEvent = {
 // uploaded supporting document -- a subset of the ~26-field schema used by the PAX reference
 // project's OpenAI-Vision extractor, mapped onto this app's ApplicationInput domain.
 // ---------------------------------------------------------------------------------------------
-export type DocumentKind = "medical" | "financial" | "identity" | "application" | "claim" | "other";
-export type EvidenceSource = "ocr" | "pdf-text-extraction" | "docx-extraction" | "plain-text" | "gemini" | "user-edited";
+export type DocumentKind =
+  | "medical"
+  | "financial"
+  | "identity"
+  | "application"
+  | "claim"
+  | "other";
+export type EvidenceSource =
+  | "ocr"
+  | "pdf-text-extraction"
+  | "docx-extraction"
+  | "plain-text"
+  | "gemini"
+  | "user-edited";
 export type DocumentSession = {
   documentSessionId: string;
   sourceFileName: string;
@@ -87,6 +105,11 @@ export type DocumentSession = {
   createdAt: string;
 };
 export type PoolQueueReason =
+  | "REQUIRED_FIELDS_FAILED"
+  | "MULTIPLE_CATEGORIES"
+  | "CATEGORY_NOT_FOUND"
+  | "EVIDENCE_UNCERTAIN"
+  | "UNVERIFIED_EVIDENCE"
   | "DOCUMENT_QUALITY_FAILURE"
   | "INSUFFICIENT_EVALUATION_CONFIDENCE"
   | "POLICY_FAILURE"
@@ -167,13 +190,23 @@ export type DocumentExtraction = {
   createdAt?: string;
 };
 
-export type FieldOverride = { field: string; from: string; to: string; source: string };
+export type FieldOverride = {
+  field: string;
+  from: string;
+  to: string;
+  source: string;
+};
 
 // What the submitter decided when the interactive Submit page asked them to reconcile document
 // data against what they typed (instead of the AI silently overriding).
 export type ReconciliationLog = {
   applied: FieldOverride[]; // submitter chose the document value
-  keptOwn: { field: string; userValue: string; documentValue: string; source: string }[]; // kept their own despite a mismatch
+  keptOwn: {
+    field: string;
+    userValue: string;
+    documentValue: string;
+    source: string;
+  }[]; // kept their own despite a mismatch
   addedToMedicalHistory: boolean;
   addedToDisclosures: boolean;
 };
@@ -191,7 +224,7 @@ export type IngestionResult = {
 };
 
 export type DocumentValidationStatus = "PASSED" | "FAILED";
-export type DocumentRoute = "AUTO_ASSIGN" | "POOL_QUEUE";
+export type DocumentRoute = "CONTINUE_CHECKS" | "AUTO_ASSIGN" | "POOL_QUEUE";
 export type FieldStatus = "COMPLETE" | "PARTIAL" | "MISSING" | "NOT_APPLICABLE";
 export type ContradictionReasonCode =
   | "RELEASE_BEFORE_ADMISSION"
@@ -245,7 +278,11 @@ export type DocumentQualityEvaluation = {
   extractedEvidence: string[];
   matchedEvidence: string[];
   readabilityProblems: string[];
-  scoreBreakdown: Array<{ dimension: string; points: number; explanation: string }>;
+  scoreBreakdown: Array<{
+    dimension: string;
+    points: number;
+    explanation: string;
+  }>;
   engineUsed: "gemini" | "deterministic-fallback";
 };
 
@@ -265,6 +302,12 @@ export type UnderwritingCase = ApplicationInput & {
   ingestion: IngestionResult | null;
   documentQuality: DocumentQualityEvaluation | null;
   documentSessionId?: string;
+  intakePolicyVersion?: string;
+  careEvidence?: CareEvidence;
+  careDecision?: CareDecision;
+  evidenceVerified?: boolean;
+  snapshotSignature?: string;
+  underwritingDecision?: "NOT_EVALUATED" | "STP" | "MANUAL";
   createdAt: string;
   updatedAt: string;
   audit: AuditEvent[];

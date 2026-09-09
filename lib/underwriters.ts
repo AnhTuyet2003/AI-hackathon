@@ -11,7 +11,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Standard", "Accidental"],
     currentQueueLoad: 3,
     slaMinutesRemainingAvg: 600,
-    availability: "active"
+    availability: "active",
   },
   {
     id: "UW-TBECKER",
@@ -21,7 +21,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Standard", "Accidental"],
     currentQueueLoad: 1,
     slaMinutesRemainingAvg: 700,
-    availability: "active"
+    availability: "active",
   },
   {
     id: "UW-SJENKINS",
@@ -31,7 +31,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Cardiology", "Oncology", "Standard"],
     currentQueueLoad: 8,
     slaMinutesRemainingAvg: 120,
-    availability: "active"
+    availability: "active",
   },
   {
     id: "UW-PNAIR",
@@ -41,7 +41,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Endocrinology", "Standard"],
     currentQueueLoad: 4,
     slaMinutesRemainingAvg: 240,
-    availability: "active"
+    availability: "active",
   },
   {
     id: "UW-AMINH",
@@ -51,7 +51,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Complex Medical", "Liver"],
     currentQueueLoad: 2,
     slaMinutesRemainingAvg: 90,
-    availability: "dnd"
+    availability: "dnd",
   },
   {
     id: "UW-LPHAM",
@@ -61,7 +61,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Complex Medical", "Cardiology", "Oncology"],
     currentQueueLoad: 11,
     slaMinutesRemainingAvg: 45,
-    availability: "active"
+    availability: "active",
   },
   // Added so the Medical tier can actually receive an assignment: Dr. Alex Minh is DND and
   // Dr. Lan Pham is permanently over the Medical queue cap, which previously forced every
@@ -72,10 +72,17 @@ export const underwriterRegistry: Underwriter[] = [
     name: "Dr. Do Khanh",
     tier: "Medical",
     authorityLimit: 1_500_000,
-    specializationTags: ["Complex Medical", "Endocrinology", "Liver"],
+    specializationTags: [
+      "Complex Medical",
+      "Endocrinology",
+      "Liver",
+      "General Surgery",
+      "Pulmonology",
+      "Dental",
+    ],
     currentQueueLoad: 3,
     slaMinutesRemainingAvg: 110,
-    availability: "active"
+    availability: "active",
   },
   {
     id: "UW-MTHAO",
@@ -85,7 +92,7 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Cardiology", "Standard"],
     currentQueueLoad: 2,
     slaMinutesRemainingAvg: 200,
-    availability: "active"
+    availability: "active",
   },
   {
     id: "UW-RGUPTA",
@@ -95,13 +102,13 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Standard", "Accidental"],
     currentQueueLoad: 4,
     slaMinutesRemainingAvg: 520,
-    availability: "active"
-  }
+    availability: "active",
+  },
 ];
 
 // Workload cap per tier used by the Workload Balancing policy (Filter Node).
 export const queueLoadCapByTier: Record<Underwriter["tier"], number> = {
   Junior: 6,
   Senior: 10,
-  Medical: 8
+  Medical: 8,
 };

@@ -31,16 +31,50 @@ export function setRole(role: Role) {
   window.dispatchEvent(new CustomEvent(ROLE_EVENT));
 }
 
-export const NAV_ITEMS: { href: string; label: string; roles: Role[]; group: string }[] = [
+export const NAV_ITEMS: {
+  href: string;
+  label: string;
+  roles: Role[];
+  group: string;
+}[] = [
   { href: "/", label: "Dashboard", roles: ["admin"], group: "My Work" },
-  { href: "/submit", label: "Submit Application", roles: ["user", "admin"], group: "Requests" },
-  { href: "/pool-queue", label: "Pool Queue", roles: ["admin"], group: "Requests" },
-  { href: "/audit", label: "Audit Log", roles: ["admin"], group: "Governance" }
+  {
+    href: "/submit",
+    label: "Submit Application",
+    roles: ["user", "admin"],
+    group: "Requests",
+  },
+  {
+    href: "/pool-queue",
+    label: "Pool Queue",
+    roles: ["admin"],
+    group: "Requests",
+  },
+  {
+    href: "/mentor-demo",
+    label: "Mentor Demo",
+    roles: ["admin"],
+    group: "Evaluation",
+  },
+  {
+    href: "/label-review",
+    label: "Label Review",
+    roles: ["admin"],
+    group: "Evaluation",
+  },
+  { href: "/audit", label: "Audit Log", roles: ["admin"], group: "Governance" },
 ];
 
 export function canAccess(pathname: string, role: Role): boolean {
   if (pathname === "/submit") return true; // both roles
-  if (pathname === "/" || pathname === "/pool-queue" || pathname === "/audit" || pathname.startsWith("/cases/")) {
+  if (
+    pathname === "/" ||
+    pathname === "/pool-queue" ||
+    pathname === "/label-review" ||
+    pathname === "/mentor-demo" ||
+    pathname === "/audit" ||
+    pathname.startsWith("/cases/")
+  ) {
     return role === "admin";
   }
   return true; // unknown routes stay open

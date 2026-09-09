@@ -6,3 +6,7 @@ next-env.d.ts
 
 # Read-only reference clone (see README.md) -- not part of the shipped project.
 reference/
+
+# Reproducible evaluation build and local reports.
+.evaluation-build/
+evaluation/results/

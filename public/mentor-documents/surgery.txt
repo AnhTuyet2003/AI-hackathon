@@ -1,0 +1,26 @@
+Synthetic medical evidence — mentor demo only.
+Care setting: Formal inpatient admission.
+Relevant medical history: No known conditions or drug allergies.
+Patient responsibility: 20
+Supporting documents: Operative report and hospital bill
+Reason for care: Severe acute abdominal pain
+Clinical course: Multi-day admission; localized peritonitis complication monitored. Release after recovery.
+Eligible amount: 80
+Insurer payment: 80
+Procedure date: 2026-08-13
+Investigations: CT and ultrasound imaging
+Diagnosis code: K35.30
+Policy number: DEMO-1001
+Provider code: CLINIC-01
+Facility name: Example General Hospital
+Service start: 2026-08-12
+Billed amount: 100
+Patient name: Mentor Example
+Test results: Inflamed appendix
+Service end: 2026-08-16
+Examination: Abdominal guarding
+Department: General Surgery
+Procedures: Appendectomy with operative report
+Treatment: Intravenous antibiotics and surgical care
+Diagnosis: Acute appendicitis with localized peritonitis
+Symptoms: Fever and tenderness
