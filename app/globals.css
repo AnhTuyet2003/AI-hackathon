@@ -10,11 +10,22 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Always reserve space for the vertical scrollbar. Without this, switching
+     between a tall tab (e.g. Assessment) and a short one toggles the scrollbar,
+     which shifts the whole layout width and makes the command/tab bars flicker. */
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: #f3f2f1;
   color: #18212f;
   font-size: 13px;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 button,
@@ -71,6 +82,12 @@ textarea {
 
   .tab-bar {
     @apply flex flex-wrap gap-1 overflow-x-auto border-b border-line bg-white px-2;
+  }
+
+  .tab-panels {
+    /* Keep a stable floor so short tabs don't collapse the page and bounce the
+       scrollbar back and forth during rapid tab switches. */
+    @apply min-h-[60vh];
   }
 
   .tab-item {

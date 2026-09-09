@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+
+// Runs before the browser paints on the client, falls back to useEffect during SSR so Next
+// doesn't warn. We need the *layout* variant so the stored role is applied before the first
+// paint -- otherwise every load flashes the default "user" chrome for a frame before snapping
+// to "admin" (nav items appearing, switcher highlight jumping, text reflowing).
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // Deliberately lightweight demo access control -- no backend, no real auth. The "role" is just a
 // value in localStorage that the sidebar switcher flips. Two roles:
@@ -55,9 +61,15 @@ export function useRole(): { role: Role; ready: boolean } {
   const [role, setRoleState] = useState<Role>("user");
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  // Apply the persisted role before the first paint so the shell renders the correct
+  // chrome straight away instead of flashing "user" -> "admin".
+  useIsomorphicLayoutEffect(() => {
     setRoleState(getRole());
     setReady(true);
+  }, []);
+
+  // Keep in sync with the switcher (same tab) and other tabs -- passive is fine here.
+  useEffect(() => {
     const sync = () => setRoleState(getRole());
     window.addEventListener(ROLE_EVENT, sync);
     window.addEventListener("storage", sync);
