@@ -79,6 +79,15 @@ describe('raw document to final assignment',()=>{
   }
   const c=await runIntakePipeline(mentorApplication,{files:[upload(mentorScenarios[0].text),upload(medicalText({...fields,patientName:'Other patient'},'Outpatient wellness visit'),'other.txt')]});expect(c.poolQueueReason).toBe('CONTRADICTORY_INFORMATION');
  });
+ test('contradictory service dates across uploaded files are blocked before routing',async()=>{
+  const base=parseMedicalText(mentorScenarios[0].text);
+  const first=medicalText(base,'Outpatient wellness visit');
+  const second=medicalText({...base, serviceStart:'2026-09-18', diagnosis:'Acute appendicitis', chiefComplaint:'Sudden abdominal pain'},'Outpatient surgery admission');
+  const c=await runIntakePipeline(mentorApplication,{files:[upload(first,'first.txt'),upload(second,'second.txt')]});
+  expect(c.status).toBe('POOL_QUEUE');
+  expect(c.poolQueueReason).toBe('CONTRADICTORY_INFORMATION');
+  expect(c.match).toBeNull();
+ });
  test('low extraction confidence blocks assignment despite high quality',async()=>{
   const e=(await extractDocuments([upload(mentorScenarios[0].text)]))[0];e.fields.extractionConfidence=0.2;
   const c=await runIntakePipeline(mentorApplication,{extractions:[e]});expect(c.documentQuality?.score).toBeGreaterThanOrEqual(8);expect(c.poolQueueReason).toBe('INSUFFICIENT_EVALUATION_CONFIDENCE');expect(c.match).toBeNull();

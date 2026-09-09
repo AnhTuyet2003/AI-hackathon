@@ -77,6 +77,46 @@ export function documentRequiredFields(f: ExtractedFields) {
     .map(([label]) => String(label));
 }
 
+function normalizeContradictionValue(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(/\s+/g, " ").toLowerCase();
+    return normalized || null;
+  }
+  return null;
+}
+
+function findCrossDocumentContradiction(extractions: DocumentExtraction[]) {
+  const fieldsToCheck = [
+    "patientName",
+    "policyNumber",
+    "serviceStart",
+    "serviceEnd",
+    "providerCode",
+    "facilityName",
+    "department",
+    "billingAmount",
+    "eligibleAmount",
+    "insurerPayment",
+  ] as const;
+
+  for (const field of fieldsToCheck) {
+    const uniqueValues = new Set(
+      extractions
+        .map((e) => normalizeContradictionValue(e.fields[field]))
+        .filter((v): v is string => !!v),
+    );
+    if (uniqueValues.size > 1) {
+      return {
+        field,
+        values: [...uniqueValues],
+      };
+    }
+  }
+
+  return null;
+}
+
 export function prepareIntake(
   input: ApplicationInput,
   extractions: DocumentExtraction[],
@@ -170,6 +210,16 @@ export function prepareIntake(
       c.documentQuality = evaluateDocumentQuality(extractions);
     return pool(c, "REQUIRED_FIELDS_FAILED", c.followUpMessage);
   }
+
+  const crossDocumentContradiction = findCrossDocumentContradiction(extractions);
+  if (crossDocumentContradiction) {
+    return pool(
+      c,
+      "CONTRADICTORY_INFORMATION",
+      `Conflicting ${crossDocumentContradiction.field} across uploaded documents: ${crossDocumentContradiction.values.join(" vs ")}.`,
+    );
+  }
+
   for (const key of ["patientName", "policyNumber"] as const) {
     const values = extractions
       .map((e) => e.fields[key])
