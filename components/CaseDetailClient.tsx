@@ -280,24 +280,29 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
       )}
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
-      <div className="space-y-4 p-4 md:p-6">
+      <div className="tab-panels space-y-4 p-4 md:p-6">
         {error ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[13px] font-semibold text-udred">
             {error}
           </p>
         ) : null}
 
-        {tab === "Assessment" ? <AssessmentTab caseItem={caseItem} /> : null}
-        {tab === "Documents" ? (
+        {/* All panels stay mounted and are toggled with `hidden` so switching tabs
+            never unmounts/remounts a subtree -- that re-mount was what made the
+            command bar and tab bar flicker (and occasionally throw) on fast switches. */}
+        <div hidden={tab !== "Assessment"} role="tabpanel">
+          <AssessmentTab caseItem={caseItem} />
+        </div>
+        <div hidden={tab !== "Documents"} role="tabpanel">
           <DocumentsTab
             extractions={caseItem.documentExtractions ?? []}
             ingestion={caseItem.ingestion ?? null}
           />
-        ) : null}
-        {tab === "Allocation Matrix" ? (
+        </div>
+        <div hidden={tab !== "Allocation Matrix"} role="tabpanel">
           <AllocationTab caseItem={caseItem} />
-        ) : null}
-        {tab === "Actions" ? (
+        </div>
+        <div hidden={tab !== "Actions"} role="tabpanel">
           <ActionsTab
             busy={busy}
             caseItem={caseItem}
@@ -310,8 +315,10 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
             setRejectReason={setRejectReason}
             setRerouteReason={setRerouteReason}
           />
-        ) : null}
-        {tab === "Audit" ? <AuditTab caseItem={caseItem} /> : null}
+        </div>
+        <div hidden={tab !== "Audit"} role="tabpanel">
+          <AuditTab caseItem={caseItem} />
+        </div>
       </div>
     </>
   );
@@ -385,30 +392,6 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
           ) : (
             <p className="text-[13px] text-muted">Not scored yet.</p>
           )}
-        </FormSection>
-
-        <FormSection title="Basic Information">
-          <FieldRow label="Applicant" locked>
-            {caseItem.applicantName}
-          </FieldRow>
-          <FieldRow label="Age" locked>
-            {caseItem.age}
-          </FieldRow>
-          <FieldRow label="Occupation" locked>
-            {caseItem.occupation}
-          </FieldRow>
-          <FieldRow label="Product line" locked>
-            {caseItem.productLine}
-          </FieldRow>
-          <FieldRow label="Sum Assured" locked>
-            ${caseItem.sumAssured.toLocaleString("en-US")}
-          </FieldRow>
-          <FieldRow label="Medical history" locked>
-            {caseItem.medicalHistory || <span className="text-muted">—</span>}
-          </FieldRow>
-          <FieldRow label="Disclosures" locked>
-            {caseItem.disclosures || <span className="text-muted">—</span>}
-          </FieldRow>
         </FormSection>
       </div>
 
