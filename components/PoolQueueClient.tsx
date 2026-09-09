@@ -74,7 +74,17 @@ export function PoolQueueClient() {
               {c.complexity ? <ComplexityBadge band={c.complexity.band} score={c.complexity.score} /> : null}
             </div>
 
-            <div className="mt-3 rounded border-l-2 border-udred bg-red-50 p-2.5 text-[13px] text-udred">{c.match?.rationale}</div>
+            <div className="mt-3 rounded border-l-2 border-udred bg-red-50 p-2.5 text-[13px] text-udred">
+              {c.poolQueueReason ? <p><strong>Primary reason:</strong> {formatPoolReason(c.poolQueueReason)}</p> : null}
+              {c.documentQuality?.validationStatus === "FAILED" ? (
+                <>
+                  <strong>Document validation failed: {c.documentQuality.score}/10.</strong>{" "}
+                  {c.documentQuality.missingFields.length ? `Missing or incomplete: ${c.documentQuality.missingFields.join(", ")}.` : "Review the document quality findings."}
+                </>
+              ) : null}
+              {c.documentQuality?.validationStatus === "FAILED" && c.match?.rationale ? " " : null}
+              {c.match?.rationale}
+            </div>
 
             <div className="mt-3 flex flex-wrap items-end gap-3">
               <label className="field-label">
@@ -109,4 +119,8 @@ export function PoolQueueClient() {
       </div>
     </>
   );
+}
+
+function formatPoolReason(reason: NonNullable<UnderwritingCase["poolQueueReason"]>) {
+  return reason.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
 }

@@ -1,22 +1,32 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CommandBar, CommandButton, CommandDivider, FormGrid, FormSection, RecordHeader } from "@/components/ModelDriven";
 import { Spinner } from "@/components/Spinner";
 import { getCases, saveCases } from "@/lib/local-store";
 import { buildReconcileSuggestions, medicalHistoryAddition, type FieldSuggestion } from "@/lib/reconcile";
+import { createDocumentSession, hashBase64 } from "@/lib/document-session";
 import { submitPresets } from "@/test/fixtures/applications";
-import type { ApplicationInput, DocumentExtraction, ReconciliationLog, UnderwritingCase } from "@/lib/types";
+import type { ApplicationInput, DocumentExtraction, DocumentSession, ReconciliationLog, UnderwritingCase } from "@/lib/types";
 
 const PRODUCT_LINES = ["Individual Life", "Group Life", "Critical Illness", "Health"];
 
-const ACCEPTED_TYPES = ["application/pdf", "image/png", "image/jpeg", "text/plain"];
+const ACCEPTED_TYPES = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "text/plain"];
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 4_000_000;
 const FORM_ID = "new-application-form";
+const DOCUMENT_BLOCK = /\[DOCUMENT_EVIDENCE_START:[^\]]+\][\s\S]*?\[DOCUMENT_EVIDENCE_END:[^\]]+\]/g;
 
-type PendingFile = { name: string; mimeType: string; dataBase64: string };
+function withoutDocumentEvidence(value: string) {
+  return value.replace(DOCUMENT_BLOCK, "").replace(/\s{2,}/g, " ").trim();
+}
+
+function documentEvidenceBlock(sessionId: string, evidence: string) {
+  return `[DOCUMENT_EVIDENCE_START:${sessionId}] ${evidence} [DOCUMENT_EVIDENCE_END:${sessionId}]`;
+}
+
+type PendingFile = { name: string; mimeType: string; dataBase64: string; sourceFileHash: string; documentSessionId: string; createdAt: string };
 type Decision = { choice: "doc" | "mine"; from: string; to: string; source: string };
 
 const EMPTY: ApplicationInput = {
@@ -47,12 +57,15 @@ export function SubmitClient() {
   const [form, setForm] = useState<ApplicationInput>(EMPTY);
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [extractions, setExtractions] = useState<DocumentExtraction[]>([]);
+  const [documentSession, setDocumentSession] = useState<DocumentSession | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [addedMed, setAddedMed] = useState(false);
   const [addedDisc, setAddedDisc] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeSessionRef = useRef<string | null>(null);
+  const extractionRequestRef = useRef(0);
 
   const suggestions = useMemo(() => buildReconcileSuggestions(form, extractions), [form, extractions]);
   const openFields = suggestions.fieldSuggestions.filter((s) => !decisions[s.key]);
@@ -66,9 +79,18 @@ export function SubmitClient() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  async function runExtraction(list: PendingFile[]) {
+  function resetDocumentDerivedFormState() {
+    setForm((prev) => ({ ...prev, medicalHistory: withoutDocumentEvidence(prev.medicalHistory), disclosures: withoutDocumentEvidence(prev.disclosures) }));
+    setExtractions([]);
+    setDecisions({});
+    setAddedMed(false);
+    setAddedDisc(false);
+  }
+
+  async function runExtraction(list: PendingFile[], session: DocumentSession | null) {
+    const requestId = ++extractionRequestRef.current;
+    setExtractions([]);
     if (!list.length) {
-      setExtractions([]);
       return;
     }
     setExtracting(true);
@@ -77,16 +99,17 @@ export function SubmitClient() {
       const response = await fetch("/api/documents/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ files: list })
+        body: JSON.stringify({ files: list, documentSessionId: session?.documentSessionId })
       });
       const payload = (await response.json()) as { extractions?: DocumentExtraction[]; error?: string };
       if (!response.ok || !payload.extractions) throw new Error(payload.error || "Extraction failed.");
+      if (requestId !== extractionRequestRef.current || activeSessionRef.current !== session?.documentSessionId) return;
       setExtractions(payload.extractions);
     } catch (err) {
-      setExtractions([]);
+      if (requestId === extractionRequestRef.current) setExtractions([]);
       setError(err instanceof Error ? err.message : "Could not read the documents.");
     } finally {
-      setExtracting(false);
+      if (requestId === extractionRequestRef.current) setExtracting(false);
     }
   }
 
@@ -96,23 +119,30 @@ export function SubmitClient() {
     event.target.value = "";
 
     for (const file of picked) {
-      if (!ACCEPTED_TYPES.includes(file.type)) return setError(`"${file.name}" is not a PDF, JPG, PNG, or TXT.`);
+      if (!ACCEPTED_TYPES.includes(file.type)) return setError(`"${file.name}" is not a PDF, DOCX, JPG, PNG, or TXT.`);
       if (file.size > MAX_FILE_BYTES) return setError(`"${file.name}" is larger than 4 MB.`);
     }
 
     try {
-      const encoded = await Promise.all(
-        picked.map(async (file) => ({ name: file.name, mimeType: file.type, dataBase64: await readAsBase64(file) }))
-      );
+      const encoded = await Promise.all(picked.map(async (file) => {
+        const dataBase64 = await readAsBase64(file);
+        return { name: file.name, mimeType: file.type, dataBase64, sourceFileHash: await hashBase64(dataBase64) };
+      }));
       const merged = [...files];
-      for (const f of encoded) if (!merged.some((m) => m.name === f.name)) merged.push(f);
+      for (const f of encoded) {
+        const existingIndex = merged.findIndex((m) => m.name === f.name);
+        if (existingIndex >= 0) merged[existingIndex] = { ...f, documentSessionId: "", createdAt: "" };
+        else merged.push({ ...f, documentSessionId: "", createdAt: "" });
+      }
       const capped = merged.slice(0, MAX_FILES);
       if (merged.length > MAX_FILES) setError(`Only the first ${MAX_FILES} documents are kept.`);
-      setFiles(capped);
-      setDecisions({});
-      setAddedMed(false);
-      setAddedDisc(false);
-      void runExtraction(capped);
+      const session = createDocumentSession(capped.map((f) => f.name).join(", "), capped[0]?.sourceFileHash);
+      const sessionFiles = capped.map((file) => ({ ...file, documentSessionId: session.documentSessionId, createdAt: session.createdAt }));
+      setDocumentSession(session);
+      activeSessionRef.current = session.documentSessionId;
+      resetDocumentDerivedFormState();
+      setFiles(sessionFiles);
+      void runExtraction(sessionFiles, session);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not read the selected files.");
     }
@@ -120,11 +150,13 @@ export function SubmitClient() {
 
   function removeFile(name: string) {
     const next = files.filter((f) => f.name !== name);
-    setFiles(next);
-    setDecisions({});
-    setAddedMed(false);
-    setAddedDisc(false);
-    void runExtraction(next);
+    const session = next.length ? createDocumentSession(next.map((f) => f.name).join(", "), next[0]?.sourceFileHash) : null;
+    const sessionFiles = session ? next.map((file) => ({ ...file, documentSessionId: session.documentSessionId, createdAt: session.createdAt })) : [];
+    setDocumentSession(session);
+    activeSessionRef.current = session?.documentSessionId ?? null;
+    resetDocumentDerivedFormState();
+    setFiles(sessionFiles);
+    void runExtraction(sessionFiles, session);
   }
 
   function useDocValue(s: FieldSuggestion) {
@@ -148,13 +180,15 @@ export function SubmitClient() {
   function addFindingsToMedicalHistory() {
     const addition = medicalHistoryAddition(suggestions.findings);
     if (!addition) return;
-    update("medicalHistory", [form.medicalHistory.trim(), addition].filter(Boolean).join(" ").trim());
+    const sessionId = documentSession?.documentSessionId ?? "current";
+    update("medicalHistory", [withoutDocumentEvidence(form.medicalHistory), documentEvidenceBlock(sessionId, addition)].filter(Boolean).join(" ").trim());
     setAddedMed(true);
   }
 
   function addFindingsToDisclosures() {
     if (!suggestions.disclosuresText) return;
-    update("disclosures", [form.disclosures.trim(), suggestions.disclosuresText].filter(Boolean).join(" ").trim());
+    const sessionId = documentSession?.documentSessionId ?? "current";
+    update("disclosures", [withoutDocumentEvidence(form.disclosures), documentEvidenceBlock(sessionId, suggestions.disclosuresText)].filter(Boolean).join(" ").trim());
     setAddedDisc(true);
   }
 
@@ -164,6 +198,12 @@ export function SubmitClient() {
     setError(null);
 
     const documents = files.length ? files.map((f) => f.name) : form.documents;
+
+    if (files.length && (!documentSession || extractions.length !== files.length || extractions.some((e) => e.documentSessionId !== documentSession.documentSessionId))) {
+      setError("The selected document changed while it was being read. Please wait for extraction to finish and try again.");
+      setSubmitting(false);
+      return;
+    }
 
     const applied = Object.entries(decisions)
       .filter(([, d]) => d.choice === "doc")
@@ -181,7 +221,7 @@ export function SubmitClient() {
       const response = await fetch("/api/cases/process", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, documents, extractions, reconciliation })
+        body: JSON.stringify({ ...form, documents, files, extractions, reconciliation, documentSessionId: documentSession?.documentSessionId })
       });
       const payload = (await response.json()) as { case?: UnderwritingCase; error?: string };
       if (!response.ok || !payload.case) throw new Error(payload.error || "Failed to process application.");
@@ -266,9 +306,9 @@ export function SubmitClient() {
                 </select>
               </label>
               <label className="field-label">
-                Supporting documents (PDF / JPG / PNG / TXT, max {MAX_FILES})
+                Supporting documents (PDF / DOCX / JPG / PNG / TXT, max {MAX_FILES})
                 <input
-                  accept=".pdf,.png,.jpg,.jpeg,.txt,application/pdf,image/png,image/jpeg,text/plain"
+                  accept=".pdf,.docx,.png,.jpg,.jpeg,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,text/plain"
                   className="field-input"
                   disabled={submitting}
                   multiple
@@ -389,7 +429,7 @@ function ReconcilePanel({
 
       <div className="mt-2 flex flex-wrap gap-2">
         {extractions.map((e) => (
-          <span className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1 text-[11px] font-semibold" key={e.fileName}>
+            <span className="inline-flex items-center gap-2 rounded bg-slate-100 px-2.5 py-1 text-[11px] font-semibold" key={e.fileName}>
             {e.fileName}
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -398,6 +438,8 @@ function ReconcilePanel({
             >
               {e.provider === "gemini" ? "Gemini" : "stub"}
             </span>
+            <span className="text-muted">{e.source ?? "unknown source"}</span>
+            {e.documentSessionId ? <span className="text-muted">session {e.documentSessionId.slice(-8)}</span> : null}
           </span>
         ))}
       </div>

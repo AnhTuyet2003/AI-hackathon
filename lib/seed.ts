@@ -1,5 +1,6 @@
 import { evaluateAndRank } from "./matching";
 import { detectMissingFields, extractEntities, scoreComplexity } from "./mock-ai";
+import { combineExtractedFields } from "./reconcile";
 import type { ApplicationInput, AuditEvent, CaseStatus, DecisionPath, UnderwritingCase, Underwriter } from "./types";
 import { queueLoadCapByTier, underwriterRegistry } from "./underwriters";
 import { applicationFixtures, demoIngestionByKey, generateApplications } from "@/test/fixtures/applications";
@@ -12,13 +13,15 @@ import { applicationFixtures, demoIngestionByKey, generateApplications } from "@
 // take; the generator adds background volume so the dashboard charts are populated.
 
 let seedCounter = 0;
+let seedAuditCounter = 0;
 function seedId(prefix: string) {
   seedCounter += 1;
   return `${prefix}-SEED${seedCounter}`;
 }
 
 function seedAudit(caseId: string, actor: AuditEvent["actor"], action: string, detail: string, minutesAgo: number): AuditEvent {
-  return { id: `${caseId}-evt${minutesAgo}`, caseId, actor, action, detail, createdAt: new Date(Date.now() - minutesAgo * 60_000).toISOString() };
+  seedAuditCounter += 1;
+  return { id: `${caseId}-evt${minutesAgo}-${seedAuditCounter}`, caseId, actor, action, detail, createdAt: new Date(Date.now() - minutesAgo * 60_000).toISOString() };
 }
 
 // A mutable copy of the registry whose queue loads grow as each seed case is assigned. Passing this
@@ -34,7 +37,8 @@ function buildSeedCase(input: ApplicationInput, { minutesAgo, resolveNote, sampl
   const demo = sampleKey ? demoIngestionByKey[sampleKey] : undefined;
   const { missingFields, followUpMessage } = detectMissingFields(input);
   const ner = extractEntities(input);
-  const complexity = scoreComplexity(input, ner);
+  const clinicalFields = demo?.extractions.length ? combineExtractedFields(demo.extractions.map((e) => e.fields)) : undefined;
+  const complexity = scoreComplexity(input, ner, clinicalFields);
   const { evaluations, eligibleUnderwriters } = evaluateAndRank(input.sumAssured, ner, complexity, undefined, workingRegistry);
   const chosen = eligibleUnderwriters[0] ?? null;
 
@@ -108,9 +112,14 @@ function buildSeedCase(input: ApplicationInput, { minutesAgo, resolveNote, sampl
       rationale: "Seeded demo case (deterministic engine)."
     },
     assigneeId: chosen?.id ?? null,
+    poolQueueReason: chosen ? null : "NO_ELIGIBLE_UNDERWRITER",
     provider: "fallback",
     documentExtractions: demo?.extractions ?? [],
     ingestion: demo?.ingestion ?? null,
+    // Seed fixtures contain document-name placeholders, not document bytes. Running the quality
+    // evaluator here would either invent evidence or mark every historical snapshot unreadable.
+    // Real uploaded/attached documents always run through evaluateDocumentQuality in pipeline.ts.
+    documentQuality: null,
     createdAt: new Date(Date.now() - (minutesAgo + 6) * 60_000).toISOString(),
     updatedAt,
     audit: events

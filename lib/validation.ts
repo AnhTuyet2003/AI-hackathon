@@ -3,7 +3,7 @@ import type { UploadedFile } from "./document-ingest";
 
 const PRODUCT_LINES = ["Individual Life", "Group Life", "Critical Illness", "Health"];
 
-const ALLOWED_UPLOAD_MIME = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "text/plain"];
+const ALLOWED_UPLOAD_MIME = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "image/png", "image/jpeg", "image/jpg", "text/plain"];
 const MAX_UPLOAD_FILES = 4;
 const MAX_UPLOAD_BYTES = 4_000_000;
 
@@ -19,13 +19,17 @@ export function parseUploadedFiles(value: unknown): { data: UploadedFile[]; erro
     const dataBase64 = typeof item.dataBase64 === "string" ? item.dataBase64.trim() : "";
     if (!name || !dataBase64) continue;
     if (!ALLOWED_UPLOAD_MIME.includes(mimeType)) {
-      return { data: [], error: `Unsupported file type "${mimeType || "unknown"}". Upload PDF, JPG, or PNG.` };
+      return { data: [], error: `Unsupported file type "${mimeType || "unknown"}". Upload PDF, DOCX, JPG, or PNG.` };
     }
     // base64 decodes to ~3/4 of its own length.
     if (dataBase64.length * 0.75 > MAX_UPLOAD_BYTES) {
       return { data: [], error: `"${name}" is larger than the 4 MB per-file limit.` };
     }
-    files.push({ name, mimeType, dataBase64 });
+    const ocrText = typeof item.ocrText === "string" ? item.ocrText.replace(/\s+/g, " ").trim().slice(0, 20_000) : undefined;
+    const documentSessionId = typeof item.documentSessionId === "string" ? item.documentSessionId.trim().slice(0, 120) : undefined;
+    const sourceFileHash = typeof item.sourceFileHash === "string" ? item.sourceFileHash.trim().slice(0, 128) : undefined;
+    const createdAt = typeof item.createdAt === "string" ? item.createdAt.trim().slice(0, 40) : undefined;
+    files.push({ name, mimeType, dataBase64, ocrText, documentSessionId, sourceFileHash, createdAt });
   }
   return { data: files };
 }

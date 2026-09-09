@@ -27,8 +27,8 @@ export function DashboardClient() {
   const stats = useMemo(() => {
     const stp = cases.filter((c) => c.decisionPath === "STP").length;
     const manual = cases.filter((c) => c.decisionPath === "MANUAL").length;
-    const escalated = cases.filter((c) => c.decisionPath === "ESCALATED").length;
-    return { total: cases.length, stp, manual, escalated };
+    const poolQueue = cases.filter((c) => c.status === "POOL_QUEUE").length;
+    return { total: cases.length, stp, manual, poolQueue };
   }, [cases]);
 
   function handleReset() {
@@ -60,7 +60,7 @@ export function DashboardClient() {
           { label: "Total", value: stats.total },
           { label: "STP", value: stats.stp },
           { label: "Manual", value: stats.manual },
-          { label: "Pool Queue", value: stats.escalated }
+          { label: "Pool Queue", value: stats.poolQueue }
         ]}
       />
 
@@ -69,7 +69,7 @@ export function DashboardClient() {
           <StatCard label="Total cases" value={stats.total} tone="blue" />
           <StatCard label="Auto-assigned (STP)" value={stats.stp} tone="green" />
           <StatCard label="Manual review" value={stats.manual} tone="amber" />
-          <StatCard label="Pool Queue (escalated)" value={stats.escalated} tone="red" />
+          <StatCard label="Pool Queue" value={stats.poolQueue} tone="red" />
         </section>
 
         <FormSection title="Underwriter Registry — Smart Allocation Matrix capacity snapshot">
