@@ -112,7 +112,11 @@ export function extractEntities(
     possibleSpecialties: confirmed ? [] : specialtyArray,
     confidence: entities.length
       ? (confirmed ? 0.85 : 0.5)
-      : clinicalFields !== undefined ? 0.35 : 0.9
+      : clinicalFields !== undefined
+        ? hasConfirmedEvidence
+          ? 0.85
+          : 0.35
+        : 0.9,
   };
 }
 

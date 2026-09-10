@@ -302,13 +302,6 @@ export function evaluateDocumentQuality(
       }
     }
   }
-  // Normalise raw points to 0-10 based only on the applicable dimensions.
-  // E.g. a dental claim with 2 N/A dimensions (8 applicable) that completes all 8
-  // should score 10, not 8. Formula: (rawPoints / applicableCount) * 10.
-  if (applicableCount > 0 && applicableCount < dimensions.length) {
-    score = round1((score / applicableCount) * dimensions.length);
-  }
-
   const rawScore = score;
   score = round1((score * 10) / Math.max(1, 10 - notApplicableFields.length));
   if (score !== rawScore)

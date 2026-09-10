@@ -84,7 +84,6 @@ describe("deterministic AI fixtures", () => {
 
 describe("policy fixture coverage", () => {
   const cleanComplexity: ComplexityResult = {
-    caseComplexityScore:2,applicationComplexityScore:2,clinicalComplexityScore:1,complexityConfidence:0.9,complexityEvidence:[],
     score: 2,
     caseComplexityScore: 2,
     band: "low",
