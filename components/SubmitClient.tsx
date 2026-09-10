@@ -664,27 +664,6 @@ export function SubmitClient() {
                 : "Submit Application"}
           </button>
         </form>
-
-        <div className="mt-8 border-t border-line pt-6">
-          <FormSection title="Demo Documents">
-            <p className="text-[13px] text-muted mb-3">
-              Download these sample PDFs to test the extraction and intake
-              pipeline.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {mentorScenarios.map((s) => (
-                <a
-                  key={s.id}
-                  className="ghost-button inline-block"
-                  download
-                  href={`/mentor-documents/${s.id}.pdf`}
-                >
-                  Download {s.id}.pdf
-                </a>
-              ))}
-            </div>
-          </FormSection>
-        </div>
       </div>
     </>
   );
