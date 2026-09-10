@@ -10,7 +10,10 @@ export async function POST(request: Request) {
   try {
     payload = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request payload." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request payload." },
+      { status: 400 },
+    );
   }
 
   const files = parseUploadedFiles((payload as { files?: unknown })?.files);
@@ -18,6 +21,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: files.error }, { status: 400 });
   }
 
-  const extractions = await extractDocuments(files.data);
-  return NextResponse.json({ extractions });
+  try {
+    const extractions = await extractDocuments(files.data);
+    return NextResponse.json({ extractions });
+  } catch {
+    return NextResponse.json(
+      { error: "File verification failed. Re-select the document." },
+      { status: 400 },
+    );
+  }
 }

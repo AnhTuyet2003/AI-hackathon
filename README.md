@@ -6,6 +6,14 @@ auto-routes the case to the optimal underwriter within seconds -- replacing a ma
 assignment process. Implements the module proposal and end-to-end flow diagram supplied alongside
 `AI-UD_Build_Prompt.md` for this hackathon track.
 
+For the proposed Inpatient / Outpatient / Dental classification, start with the
+[treatment classification specification and evaluation workflow](evaluation/care/README.md).
+It includes 37 labelled synthetic reference cases, an offline validation command
+(`npm run evaluate:care`), and an explicit live Gemini baseline. The reference labels need
+domain review; this evaluation does not change the life-application dispatcher.
+Use **Admin → Evaluation → Label Review** to review cases in the app, save independent
+judgements, compare proposals, and export labels for evaluation with `--reviews`.
+
 ## Stack
 
 Single Next.js 16 + TypeScript + Tailwind app (frontend + API routes together), per Option B of

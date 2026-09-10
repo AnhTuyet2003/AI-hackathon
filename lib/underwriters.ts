@@ -1,8 +1,6 @@
 import type { Underwriter } from "./types";
 
-// Sample Underwriter Registry, seeded from the AI-UD module proposal (Section 3, Component C)
-// plus extra staff so all three demo scenarios (STP / specialist match / escalation) are reachable.
-export const underwriterRegistry: Underwriter[] = [
+export const defaultUnderwriters: Underwriter[] = [
   {
     id: "UW-JDOE",
     name: "John Doe",
@@ -11,7 +9,8 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Standard", "Accidental"],
     currentQueueLoad: 3,
     slaMinutesRemainingAvg: 600,
-    availability: "active"
+    availability: "active",
+    careGroup: "Outpatient",
   },
   {
     id: "UW-TBECKER",
@@ -21,7 +20,8 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Standard", "Accidental"],
     currentQueueLoad: 1,
     slaMinutesRemainingAvg: 700,
-    availability: "active"
+    availability: "active",
+    careGroup: "Inpatient",
   },
   {
     id: "UW-SJENKINS",
@@ -31,7 +31,8 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Cardiology", "Oncology", "Standard"],
     currentQueueLoad: 8,
     slaMinutesRemainingAvg: 120,
-    availability: "active"
+    availability: "active",
+    careGroup: "Outpatient",
   },
   {
     id: "UW-PNAIR",
@@ -41,7 +42,8 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Endocrinology", "Standard"],
     currentQueueLoad: 4,
     slaMinutesRemainingAvg: 240,
-    availability: "active"
+    availability: "active",
+    careGroup: "Inpatient",
   },
   {
     id: "UW-AMINH",
@@ -51,7 +53,8 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Complex Medical", "Liver"],
     currentQueueLoad: 2,
     slaMinutesRemainingAvg: 90,
-    availability: "dnd"
+    availability: "dnd",
+    careGroup: "Inpatient",
   },
   {
     id: "UW-LPHAM",
@@ -61,21 +64,26 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Complex Medical", "Cardiology", "Oncology"],
     currentQueueLoad: 11,
     slaMinutesRemainingAvg: 45,
-    availability: "active"
+    availability: "active",
+    careGroup: "Outpatient",
   },
-  // Added so the Medical tier can actually receive an assignment: Dr. Alex Minh is DND and
-  // Dr. Lan Pham is permanently over the Medical queue cap, which previously forced every
-  // Complex Medical case into the Pool Queue. Dr. Do Khanh has a high but finite authority
-  // limit, so catastrophic-Sum-Assured cases still escalate.
   {
     id: "UW-DKHANH",
     name: "Dr. Do Khanh",
     tier: "Medical",
     authorityLimit: 1_500_000,
-    specializationTags: ["Complex Medical", "Endocrinology", "Liver"],
+    specializationTags: [
+      "Complex Medical",
+      "Endocrinology",
+      "Liver",
+      "General Surgery",
+      "Pulmonology",
+      "Dental",
+    ],
     currentQueueLoad: 3,
     slaMinutesRemainingAvg: 110,
-    availability: "active"
+    availability: "active",
+    careGroup: "Dental",
   },
   {
     id: "UW-MTHAO",
@@ -85,7 +93,8 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Cardiology", "Standard"],
     currentQueueLoad: 2,
     slaMinutesRemainingAvg: 200,
-    availability: "active"
+    availability: "active",
+    careGroup: "Outpatient",
   },
   {
     id: "UW-RGUPTA",
@@ -95,13 +104,37 @@ export const underwriterRegistry: Underwriter[] = [
     specializationTags: ["Standard", "Accidental"],
     currentQueueLoad: 4,
     slaMinutesRemainingAvg: 520,
-    availability: "active"
-  }
+    availability: "active",
+    careGroup: "Dental",
+  },
 ];
 
 // Workload cap per tier used by the Workload Balancing policy (Filter Node).
 export const queueLoadCapByTier: Record<Underwriter["tier"], number> = {
   Junior: 6,
   Senior: 10,
-  Medical: 8
+  Medical: 8,
 };
+
+const UW_KEY = "ai-ud-underwriters-v1";
+
+export function getUnderwriters(): Underwriter[] {
+  if (typeof window === "undefined") return defaultUnderwriters;
+  const saved = window.localStorage.getItem(UW_KEY);
+  if (!saved) {
+    window.localStorage.setItem(UW_KEY, JSON.stringify(defaultUnderwriters));
+    return defaultUnderwriters;
+  }
+  try {
+    const parsed = JSON.parse(saved) as Underwriter[];
+    return Array.isArray(parsed) ? parsed : defaultUnderwriters;
+  } catch {
+    return defaultUnderwriters;
+  }
+}
+
+export function saveUnderwriters(uws: Underwriter[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(UW_KEY, JSON.stringify(uws));
+  }
+}

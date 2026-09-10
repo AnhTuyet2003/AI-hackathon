@@ -1,0 +1,24 @@
+Synthetic medical evidence — mentor demo only.
+Care setting: Outpatient consultation.
+Relevant medical history: No known conditions or drug allergies.
+Patient responsibility: 20
+Supporting documents: Consultation report and itemized bill
+Reason for care: Routine health assessment
+Clinical course: Same-day visit completed with home recovery instructions.
+Eligible amount: 80
+Insurer payment: 80
+Investigations: Not clinically indicated
+Diagnosis code: Not provided
+Policy number: DEMO-1001
+Provider code: CLINIC-01
+Facility name: Example Family Clinic
+Service start: 2026-08-12
+Billed amount: 100
+Patient name: Mentor Example
+Test results: Not clinically indicated
+Examination: Vital signs and examination normal.
+Department: Family Medicine
+Procedures: Routine assessment
+Treatment: Routine wellness consultation
+Diagnosis: Not provided
+Symptoms: Routine wellness review
