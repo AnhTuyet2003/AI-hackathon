@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { MobileNav } from "@/components/MobileNav";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
 import { NAV_ITEMS, canAccess, landingFor, useRole } from "@/lib/session";
@@ -18,9 +18,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const allowed = canAccess(pathname, role);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    if (ready && !allowed) router.replace(landingFor(role));
+    if (ready && !allowed) {
+      setRedirecting(true);
+      router.replace(landingFor(role));
+    }
   }, [ready, allowed, role, router]);
 
   const visibleNav = NAV_ITEMS.filter((item) => item.roles.includes(role));
@@ -70,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <RoleSwitcher />
       </aside>
 
-      <main className="min-w-0">{!ready ? null : allowed ? children : <Redirecting role={role} />}</main>
+      <main className="min-w-0">{!ready ? null : allowed ? children : redirecting ? <Redirecting role={role} /> : null}</main>
     </div>
   );
 }

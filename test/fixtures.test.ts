@@ -125,11 +125,16 @@ describe("deterministic AI fixtures", () => {
 describe("policy fixture coverage", () => {
   const cleanComplexity: ComplexityResult = {
     score: 2,
+    caseComplexityScore: 2,
     band: "low",
     reasonCode: "Clean fixture",
     driverFactors: [],
+    applicationComplexityScore: 2,
+    clinicalComplexityScore: 1,
+    complexityConfidence: 0.9,
+    complexityEvidence: []
   };
-  const noSpecialty: NERResult = { entities: [], specialtiesRequired: [] };
+  const noSpecialty: NERResult = { entities: [], specialtiesRequired: [], confidence: 0.9 };
 
   it("passes an active underwriter with enough authority and capacity", () => {
     const underwriter = underwriterRegistry.find(
@@ -162,6 +167,7 @@ describe("policy fixture coverage", () => {
         { text: "Myocardial Infarction", specialization: "Cardiology" },
       ],
       specialtiesRequired: ["Cardiology"],
+      confidence: 0.85
     };
     const highComplexity: ComplexityResult = {
       ...cleanComplexity,
@@ -198,8 +204,8 @@ describe("matching fallback", () => {
     ).runMatching(
       "APP-TEST",
       80_000,
-      { entities: [], specialtiesRequired: [] },
-      { score: 2, band: "low", reasonCode: "Clean", driverFactors: [] },
+      { entities: [], specialtiesRequired: [], confidence: 0.9 },
+      { score: 2, caseComplexityScore: 2, band: "low", reasonCode: "Clean", driverFactors: [], applicationComplexityScore: 2, clinicalComplexityScore: 1, complexityConfidence: 0.9, complexityEvidence: [] },
     );
 
     expect(result.engine).toBe("greedy-fallback");

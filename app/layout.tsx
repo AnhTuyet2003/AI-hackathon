@@ -10,7 +10,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      {/* Browser extensions such as Grammarly inject data-* attributes before hydration. */}
+      <body suppressHydrationWarning>
         {/* AppShell lives in the persistent layout so the sidebar / role switcher is
             mounted once and survives every page navigation. Wrapping it per-page
             remounted it on each route change, which reset the role state and made the

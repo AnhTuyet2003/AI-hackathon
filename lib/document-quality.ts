@@ -88,35 +88,49 @@ export function evaluateDocumentQuality(
   ];
 
   let score = 0;
+  let applicableCount = 0;
   for (const dimension of dimensions) {
     const applicable = !profile.optional.has(dimension.key);
     if (!applicable) {
-      score += 1;
+      // NOT_APPLICABLE dimensions are excluded from the denominator entirely.
+      // Spec: finalScore = clamp(baseScore - penalties, 0, 10) where baseScore is
+      // computed only over applicable dimensions. Adding 1 here would artificially
+      // inflate scores for dental/same-day cases where some clinical fields don't apply.
       notApplicableFields.push(dimension.label);
-      fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "NOT_APPLICABLE", points: 1, reason: `Not clinically required for ${profile.name}.` });
-      scoreBreakdown.push({ dimension: dimension.label, points: 1, explanation: `Not clinically required for ${profile.name}.` });
+      fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "NOT_APPLICABLE", points: 0, reason: `Not clinically required for ${profile.name}; excluded from score denominator.` });
+      scoreBreakdown.push({ dimension: dimension.label, points: 0, explanation: `Not clinically required for ${profile.name}; excluded from score denominator.` });
       matchedReferenceFields.push(`${dimension.label} (not required for ${profile.name})`);
-      drivers.push({ factor: dimension.label, impact: "neutral", points: 1, explanation: `Scored against the applicable ${profile.name} evidence, not an inpatient-only field set.` });
-    } else if (dimension.present) {
-      score += 1;
-      completeFields.push(dimension.label);
-      fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "COMPLETE", points: 1, reason: "Clear, relevant, and sufficiently complete." });
-      scoreBreakdown.push({ dimension: dimension.label, points: 1, explanation: "Present, clear, and sufficiently consistent." });
-      matchedReferenceFields.push(dimension.label);
-      drivers.push({ factor: dimension.label, impact: "positive", points: 1, explanation: "Evidence is present and sufficiently specific." });
-    } else if (dimension.partial) {
-      score += 0.5;
-      partialFields.push(dimension.label);
-      const reason = partialReason(dimension.label, fields);
-      fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "PARTIAL", points: 0.5, reason });
-      scoreBreakdown.push({ dimension: dimension.label, points: 0.5, explanation: reason });
-      drivers.push({ factor: dimension.label, impact: "negative", points: 0.5, explanation: reason });
+      drivers.push({ factor: dimension.label, impact: "neutral", points: 0, explanation: `Excluded from scoring denominator for the ${profile.name} profile.` });
     } else {
-      missingFields.push(dimension.label);
-      fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "MISSING", points: 0, reason: "No usable evidence was extracted." });
-      scoreBreakdown.push({ dimension: dimension.label, points: 0, explanation: "Missing or unreadable." });
-      drivers.push({ factor: dimension.label, impact: "negative", points: 0, explanation: "Expected evidence was not found." });
+      // Applicable dimension: count it toward the denominator, then score it.
+      applicableCount++;
+      if (dimension.present) {
+        score += 1;
+        completeFields.push(dimension.label);
+        fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "COMPLETE", points: 1, reason: "Clear, relevant, and sufficiently complete." });
+        scoreBreakdown.push({ dimension: dimension.label, points: 1, explanation: "Present, clear, and sufficiently consistent." });
+        matchedReferenceFields.push(dimension.label);
+        drivers.push({ factor: dimension.label, impact: "positive", points: 1, explanation: "Evidence is present and sufficiently specific." });
+      } else if (dimension.partial) {
+        score += 0.5;
+        partialFields.push(dimension.label);
+        const reason = partialReason(dimension.label, fields);
+        fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "PARTIAL", points: 0.5, reason });
+        scoreBreakdown.push({ dimension: dimension.label, points: 0.5, explanation: reason });
+        drivers.push({ factor: dimension.label, impact: "negative", points: 0.5, explanation: reason });
+      } else {
+        missingFields.push(dimension.label);
+        fieldEvaluations.push({ field: dimension.key, label: dimension.label, status: "MISSING", points: 0, reason: "No usable evidence was extracted." });
+        scoreBreakdown.push({ dimension: dimension.label, points: 0, explanation: "Missing or unreadable." });
+        drivers.push({ factor: dimension.label, impact: "negative", points: 0, explanation: "Expected evidence was not found." });
+      }
     }
+  }
+  // Normalise raw points to 0-10 based only on the applicable dimensions.
+  // E.g. a dental claim with 2 N/A dimensions (8 applicable) that completes all 8
+  // should score 10, not 8. Formula: (rawPoints / applicableCount) * 10.
+  if (applicableCount > 0 && applicableCount < dimensions.length) {
+    score = round1((score / applicableCount) * dimensions.length);
   }
 
   const baseScore = round1(score);
