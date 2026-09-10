@@ -1,7 +1,7 @@
 import { mentorScenarios } from "./mentor-cases";
 import { prepareIntake, finalizeMatch, localMatch } from "./intake-engine";
 import { parseMedicalText } from "./medical-form";
-import { underwriterRegistry } from "./underwriters";
+import { defaultUnderwriters as underwriterRegistry } from "./underwriters";
 
 export const seedCases = mentorScenarios.map((s) => {
   const extraction = {

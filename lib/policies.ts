@@ -103,11 +103,30 @@ function checkBiasFairness(): PolicyCheck {
   };
 }
 
+function checkCareGroup(uw: Underwriter, careCategory?: string | null): PolicyCheck {
+  if (!careCategory) {
+    return {
+      policy: "Care Group Routing",
+      passed: true,
+      detail: "No care category required for this case.",
+    };
+  }
+  const passed = uw.careGroup === careCategory;
+  return {
+    policy: "Care Group Routing",
+    passed,
+    detail: passed
+      ? `Underwriter belongs to the required ${careCategory} group.`
+      : `Underwriter is in ${uw.careGroup || "no"} group, but case requires ${careCategory}.`,
+  };
+}
+
 export function evaluateUnderwriter(
   uw: Underwriter,
   sumAssured: number,
   ner: NERResult,
   complexity: ComplexityResult,
+  careCategory?: string | null,
 ): UnderwriterEvaluation {
   const policies = [
     checkAuthorityLimit(uw, sumAssured),
@@ -117,6 +136,7 @@ export function evaluateUnderwriter(
     checkSlaPriority(uw),
     checkAvailability(uw),
     checkBiasFairness(),
+    checkCareGroup(uw, careCategory),
   ];
 
   // Hard-gating policies (Escalation Policy, #8, is evaluated separately at the orchestration level
@@ -126,6 +146,7 @@ export function evaluateUnderwriter(
     "Specialization",
     "Workload Balancing",
     "Availability",
+    "Care Group Routing",
   ];
   const eligible = policies
     .filter((p) => gating.includes(p.policy))

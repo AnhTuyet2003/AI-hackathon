@@ -52,6 +52,7 @@ export type Underwriter = {
   currentQueueLoad: number;
   slaMinutesRemainingAvg: number;
   availability: AvailabilityStatus;
+  careGroup: "Inpatient" | "Outpatient" | "Dental" | null;
 };
 
 export type PolicyCheck = { policy: string; passed: boolean; detail: string };

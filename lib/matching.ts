@@ -1,7 +1,13 @@
 import { solveAssignmentViaMcp } from "./mcp-solver";
 import { evaluateUnderwriter } from "./policies";
-import { underwriterRegistry } from "./underwriters";
-import type { ComplexityResult, MatchResult, NERResult, Underwriter, UnderwriterEvaluation } from "./types";
+import { getUnderwriters } from "./underwriters";
+import type {
+  ComplexityResult,
+  MatchResult,
+  NERResult,
+  Underwriter,
+  UnderwriterEvaluation,
+} from "./types";
 
 // Optimization Node / Smart Allocation Matrix (Component C, part 2). Evaluates every underwriter
 // against the Filter Node policies, then hands the eligible pool to chuk-mcp-solver's
@@ -11,13 +17,20 @@ import type { ComplexityResult, MatchResult, NERResult, Underwriter, Underwriter
 // the demo never breaks on external connectivity.
 
 function specialtyOverlap(uw: Underwriter, specialtiesRequired: string[]) {
-  return specialtiesRequired.filter((s) => uw.specializationTags.includes(s)).length;
+  return specialtiesRequired.filter((s) => uw.specializationTags.includes(s))
+    .length;
 }
 
-function greedyPick(eligible: Underwriter[], specialtiesRequired: string[]): Underwriter {
+function greedyPick(
+  eligible: Underwriter[],
+  specialtiesRequired: string[],
+): Underwriter {
   return [...eligible].sort((a, b) => {
-    if (a.currentQueueLoad !== b.currentQueueLoad) return a.currentQueueLoad - b.currentQueueLoad;
-    const overlapDiff = specialtyOverlap(b, specialtiesRequired) - specialtyOverlap(a, specialtiesRequired);
+    if (a.currentQueueLoad !== b.currentQueueLoad)
+      return a.currentQueueLoad - b.currentQueueLoad;
+    const overlapDiff =
+      specialtyOverlap(b, specialtiesRequired) -
+      specialtyOverlap(a, specialtiesRequired);
     if (overlapDiff !== 0) return overlapDiff;
     return a.slaMinutesRemainingAvg - b.slaMinutesRemainingAvg;
   })[0];
@@ -33,16 +46,26 @@ export function evaluateAndRank(
   // Optional snapshot of the registry to evaluate against. lib/seed.ts passes an evolving copy
   // (queue loads incremented as each demo case is assigned) so seeded assignments spread across
   // the roster instead of every no-specialty case piling onto the single lowest-queue underwriter.
-  registryOverride?: Underwriter[]
+  registryOverride?: Underwriter[],
+  careCategory?: string | null,
 ) {
-  const pool = (registryOverride ?? underwriterRegistry).filter((uw) => uw.id !== excludeUnderwriterId);
-  const evaluations: UnderwriterEvaluation[] = pool.map((uw) => evaluateUnderwriter(uw, sumAssured, ner, complexity));
-  const eligibleIds = new Set(evaluations.filter((e) => e.eligible).map((e) => e.underwriterId));
+  const pool = (registryOverride ?? getUnderwriters()).filter(
+    (uw) => uw.id !== excludeUnderwriterId,
+  );
+  const evaluations: UnderwriterEvaluation[] = pool.map((uw) =>
+    evaluateUnderwriter(uw, sumAssured, ner, complexity, careCategory),
+  );
+  const eligibleIds = new Set(
+    evaluations.filter((e) => e.eligible).map((e) => e.underwriterId),
+  );
   const eligibleUnderwriters = pool.filter((uw) => eligibleIds.has(uw.id));
 
   const ranked = [...eligibleUnderwriters].sort((a, b) => {
-    if (a.currentQueueLoad !== b.currentQueueLoad) return a.currentQueueLoad - b.currentQueueLoad;
-    const overlapDiff = specialtyOverlap(b, ner.specialtiesRequired) - specialtyOverlap(a, ner.specialtiesRequired);
+    if (a.currentQueueLoad !== b.currentQueueLoad)
+      return a.currentQueueLoad - b.currentQueueLoad;
+    const overlapDiff =
+      specialtyOverlap(b, ner.specialtiesRequired) -
+      specialtyOverlap(a, ner.specialtiesRequired);
     if (overlapDiff !== 0) return overlapDiff;
     return a.slaMinutesRemainingAvg - b.slaMinutesRemainingAvg;
   });
@@ -59,9 +82,17 @@ export async function runMatching(
   sumAssured: number,
   ner: NERResult,
   complexity: ComplexityResult,
-  excludeUnderwriterId?: string
+  excludeUnderwriterId?: string,
+  careCategory?: string | null,
 ): Promise<MatchResult> {
-  const { evaluations, eligibleUnderwriters } = evaluateAndRank(sumAssured, ner, complexity, excludeUnderwriterId);
+  const { evaluations, eligibleUnderwriters } = evaluateAndRank(
+    sumAssured,
+    ner,
+    complexity,
+    excludeUnderwriterId,
+    undefined,
+    careCategory,
+  );
 
   // Escalation Policy (#8): no qualifying underwriter -> Pool Queue, handled by the caller.
   if (eligibleUnderwriters.length === 0) {
@@ -69,19 +100,25 @@ export async function runMatching(
       chosenUnderwriterId: null,
       evaluations,
       engine: "greedy-fallback",
-      rationale: "No underwriter passed all gating policies (Authority Limit, Specialization, Workload Balancing, Availability) -- Escalation Policy triggered."
+      rationale:
+        "No underwriter passed all gating policies (Authority Limit, Specialization, Workload Balancing, Availability, Care Group Routing) -- Escalation Policy triggered.",
     };
   }
 
   try {
-    const { chosenUnderwriterId, raw } = await solveAssignmentViaMcp(caseId, eligibleUnderwriters, ner.specialtiesRequired);
-    if (!chosenUnderwriterId) throw new Error("Solver returned no assignment for this case.");
+    const { chosenUnderwriterId, raw } = await solveAssignmentViaMcp(
+      caseId,
+      eligibleUnderwriters,
+      ner.specialtiesRequired,
+    );
+    if (!chosenUnderwriterId)
+      throw new Error("Solver returned no assignment for this case.");
 
     return {
       chosenUnderwriterId,
       evaluations,
       engine: "mcp-solver",
-      rationale: `chuk-mcp-solver (${raw.status}): ${raw.explanation?.summary || "optimal assignment minimizing queue load + specialization mismatch + SLA cost."}`
+      rationale: `chuk-mcp-solver (${raw.status}): ${raw.explanation?.summary || "optimal assignment minimizing queue load + specialization mismatch + SLA cost."}`,
     };
   } catch (error) {
     const chosen = greedyPick(eligibleUnderwriters, ner.specialtiesRequired);
@@ -89,7 +126,7 @@ export async function runMatching(
       chosenUnderwriterId: chosen.id,
       evaluations,
       engine: "greedy-fallback",
-      rationale: `chuk-mcp-solver unavailable (${error instanceof Error ? error.message : "unknown error"}); used local greedy matcher: lowest queue depth -> closest specialization match -> tightest SLA.`
+      rationale: `chuk-mcp-solver unavailable (${error instanceof Error ? error.message : "unknown error"}); used local greedy matcher: lowest queue depth -> closest specialization match -> tightest SLA.`,
     };
   }
 }

@@ -6,7 +6,8 @@ import { useEffect, useLayoutEffect, useState } from "react";
 // doesn't warn. We need the *layout* variant so the stored role is applied before the first
 // paint -- otherwise every load flashes the default "user" chrome for a frame before snapping
 // to "admin" (nav items appearing, switcher highlight jumping, text reflowing).
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // Deliberately lightweight demo access control -- no backend, no real auth. The "role" is just a
 // value in localStorage that the sidebar switcher flips. Two roles:
@@ -56,19 +57,13 @@ export const NAV_ITEMS: {
     roles: ["admin"],
     group: "Requests",
   },
-  {
-    href: "/mentor-demo",
-    label: "Mentor Demo",
-    roles: ["admin"],
-    group: "Evaluation",
-  },
-  {
-    href: "/label-review",
-    label: "Label Review",
-    roles: ["admin"],
-    group: "Evaluation",
-  },
   { href: "/audit", label: "Audit Log", roles: ["admin"], group: "Governance" },
+  {
+    href: "/underwriters",
+    label: "Underwriters",
+    roles: ["admin"],
+    group: "Administration",
+  },
 ];
 
 export function canAccess(pathname: string, role: Role): boolean {
@@ -79,6 +74,7 @@ export function canAccess(pathname: string, role: Role): boolean {
     pathname === "/label-review" ||
     pathname === "/mentor-demo" ||
     pathname === "/audit" ||
+    pathname === "/underwriters" ||
     pathname.startsWith("/cases/")
   ) {
     return role === "admin";

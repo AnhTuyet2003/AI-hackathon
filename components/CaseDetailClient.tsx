@@ -15,7 +15,7 @@ import {
   TabBar,
 } from "@/components/ModelDriven";
 import { getCases, saveCases } from "@/lib/local-store";
-import { underwriterRegistry } from "@/lib/underwriters";
+import { getUnderwriters } from "@/lib/underwriters";
 import { formatComplexityReason } from "@/lib/mock-ai";
 import type {
   DocumentExtraction,
@@ -172,7 +172,7 @@ export function CaseDetailClient({ caseId }: { caseId: string }) {
   }
 
   const assignee = caseItem.assigneeId
-    ? underwriterRegistry.find((u) => u.id === caseItem.assigneeId)
+    ? getUnderwriters().find((u) => u.id === caseItem.assigneeId)
     : null;
   const isLocked =
     caseItem.status === "RESOLVED" || !caseItem.snapshotSignature;
@@ -712,7 +712,7 @@ function AllocationTab({ caseItem }: { caseItem: UnderwritingCase }) {
               .slice()
               .sort((a, b) => (a.matchRank || 999) - (b.matchRank || 999))
               .map((evalItem) => {
-                const uw = underwriterRegistry.find(
+                const uw = getUnderwriters().find(
                   (u) => u.id === evalItem.underwriterId,
                 );
                 const isChosen = caseItem.assigneeId === evalItem.underwriterId;

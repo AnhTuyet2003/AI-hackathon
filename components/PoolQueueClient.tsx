@@ -10,7 +10,7 @@ import {
   RecordHeader,
 } from "@/components/ModelDriven";
 import { getCases, saveCases } from "@/lib/local-store";
-import { underwriterRegistry } from "@/lib/underwriters";
+import { getUnderwriters } from "@/lib/underwriters";
 import { mayAssign } from "@/lib/intake-engine";
 import type { UnderwritingCase } from "@/lib/types";
 
@@ -156,7 +156,7 @@ export function PoolQueueClient() {
                   value={selections[c.id] ?? ""}
                 >
                   <option value="">Select underwriter…</option>
-                  {underwriterRegistry.map((uw) => (
+                  {getUnderwriters().map((uw) => (
                     <option key={uw.id} value={uw.id}>
                       {uw.name} ({uw.tier}, queue {uw.currentQueueLoad})
                     </option>

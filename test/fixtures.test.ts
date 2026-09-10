@@ -4,7 +4,7 @@ import { solveAssignmentViaMcp } from "@/lib/mcp-solver";
 import { extractEntities, scoreComplexity } from "@/lib/mock-ai";
 import { evaluateUnderwriter } from "@/lib/policies";
 import { parseApplicationInput } from "@/lib/validation";
-import { underwriterRegistry } from "@/lib/underwriters";
+import { defaultUnderwriters as underwriterRegistry } from "@/lib/underwriters";
 import type { ComplexityResult, NERResult } from "@/lib/types";
 
 jest.mock("@/lib/gemini-ai", () => ({

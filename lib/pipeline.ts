@@ -10,7 +10,7 @@ import {
 } from "./intake-engine";
 import { INTAKE_POLICY } from "./intake-policy";
 import { evaluateUnderwriter } from "./policies";
-import { underwriterRegistry } from "./underwriters";
+import { getUnderwriters } from "./underwriters";
 import type {
   ApplicationInput,
   DocumentExtraction,
@@ -63,7 +63,14 @@ export async function runIntakePipeline(
   if (c.status === "POOL_QUEUE") return c;
   const match =
     process.env.AI_UD_LIVE_SERVICES === "true"
-      ? await runMatching(c.id, c.sumAssured, c.ner!, c.complexity!)
+      ? await runMatching(
+          c.id,
+          c.sumAssured,
+          c.ner!,
+          c.complexity!,
+          undefined,
+          c.careDecision?.category,
+        )
       : localMatch(c);
   return finalizeMatch(c, match);
 }
@@ -88,6 +95,7 @@ export async function rerouteCase(
           c.ner!,
           c.complexity!,
           excludeUnderwriterId,
+          c.careDecision?.category,
         )
       : localMatch(c, excludeUnderwriterId),
   );
@@ -102,7 +110,8 @@ export function applyOverride(
     throw new Error(
       "Correct and re-evaluate the evidence before underwriting assignment.",
     );
-  const uw = underwriterRegistry.find((u) => u.id === underwriterId);
+  const uws = getUnderwriters();
+  const uw = uws.find((u) => u.id === underwriterId);
   if (
     !uw ||
     !evaluateUnderwriter(
@@ -110,6 +119,7 @@ export function applyOverride(
       current.sumAssured,
       current.ner!,
       current.complexity!,
+      current.careDecision?.category,
     ).eligible
   )
     throw new Error(

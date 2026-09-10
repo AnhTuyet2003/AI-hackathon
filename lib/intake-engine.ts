@@ -5,7 +5,7 @@ import { extractEntities, scoreComplexity } from "./mock-ai";
 import { applicationOnly, realDate, usable } from "./evidence-text";
 import { INTAKE_POLICY } from "./intake-policy";
 import { evaluateUnderwriter } from "./policies";
-import { underwriterRegistry } from "./underwriters";
+import { getUnderwriters } from "./underwriters";
 import type {
   ApplicationInput,
   DocumentExtraction,
@@ -370,11 +370,21 @@ export function finalizeMatch(c: UnderwritingCase, match: MatchResult) {
   );
   return c;
 }
+
 export function localMatch(c: UnderwritingCase, exclude?: string): MatchResult {
-  const evaluations = underwriterRegistry
+  const uws = getUnderwriters();
+  const evaluations = uws
     .filter((u) => u.id !== exclude)
-    .map((u) => evaluateUnderwriter(u, c.sumAssured, c.ner!, c.complexity!));
-  const eligible = underwriterRegistry
+    .map((u) =>
+      evaluateUnderwriter(
+        u,
+        c.sumAssured,
+        c.ner!,
+        c.complexity!,
+        c.careDecision?.category,
+      ),
+    );
+  const eligible = uws
     .filter((u) =>
       evaluations.some((e) => e.underwriterId === u.id && e.eligible),
     )
