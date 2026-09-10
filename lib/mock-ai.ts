@@ -74,17 +74,49 @@ export function extractEntities(
     }
   }
 
+  // Spec Rule E: keyword matches alone are not sufficient to elevate a specialty to
+  // "confirmed required". We need at least one category of confirmed evidence from the
+  // clinical document (diagnosis, provider/facility, treatment/procedure, or investigation)
+  // before the NER result is trusted at high confidence.
+  //
+  // Without confirmed evidence — e.g. symptoms-only or blank documents (negative_test_01,
+  // negative_test_02) — keyword hits are tentative and must stay in possibleSpecialties
+  // with reduced confidence (0.50) so the pipeline does not misroute the case.
+  const usable = (v: unknown) =>
+    typeof v === "string"
+      ? v.trim().length > 0 && !/^(?:not available|unavailable|unknown|not provided|none|n\/a|na)$/i.test(v.trim())
+      : Boolean(v);
+
+  const hasConfirmedEvidence =
+    // No document uploaded → medicalHistory keywords are the primary signal; trust them.
+    clinicalFields == null ||
+    // Document uploaded → require at least one usable clinical field (diagnosis, provider,
+    // treatment, or investigation) before promoting keywords to specialtiesRequired.
+    // This prevents symptoms-only or blank documents (negative_test_01/02) from
+    // misrouting to a specialty queue based purely on keyword noise.
+    [
+      clinicalFields.diagnosis || clinicalFields.diagnosisCode,
+      clinicalFields.facilityName || clinicalFields.providerCode || clinicalFields.department,
+      clinicalFields.treatment || clinicalFields.procedures,
+      clinicalFields.investigations || clinicalFields.testResults
+    ].some(usable);
+
+  const specialtyArray = Array.from(specialties);
+  // Only promote to specialtiesRequired when keyword evidence is backed by a confirmed
+  // clinical document field; otherwise leave as possibleSpecialties for human review.
+  const confirmed = entities.length > 0 && hasConfirmedEvidence;
+
   return {
     entities,
-    specialtiesRequired: Array.from(specialties),
-    possibleSpecialties: [],
+    specialtiesRequired: confirmed ? specialtyArray : [],
+    possibleSpecialties: confirmed ? [] : specialtyArray,
     confidence: entities.length
-      ? 0.85
-      : clinicalFields?.diagnosis && usable(clinicalFields.diagnosis)
-        ? 0.82
-        : clinicalFields !== undefined
-          ? 0.35
-          : 0.9,
+      ? (confirmed ? 0.85 : 0.5)
+      : clinicalFields !== undefined
+        ? hasConfirmedEvidence
+          ? 0.85
+          : 0.35
+        : 0.9,
   };
 }
 
@@ -195,14 +227,14 @@ export function scoreComplexity(
 
 export function formatComplexityReason(
   score: number,
-  applicationComplexityScore: number,
-  clinicalComplexityScore: number,
-  drivers: string[],
+  applicationComplexityScore: number | undefined,
+  clinicalComplexityScore: number | undefined,
+  drivers: string[]
 ) {
-  const detail = drivers.length
-    ? ` driven by: ${drivers.join("; ")}.`
-    : " no elevated risk factors detected.";
-  return `Score ${score}/10 — 0.4 × application ${applicationComplexityScore} + 0.6 × clinical ${clinicalComplexityScore} → final case complexity ${score}/10.${detail}`;
+  const detail = drivers.length ? ` driven by: ${drivers.join("; ")}.` : " no elevated risk factors detected.";
+  const appScore = applicationComplexityScore ?? score;
+  const clinScore = clinicalComplexityScore ?? score;
+  return `Score ${score}/10 — application complexity ${appScore}/10 + clinical complexity ${clinScore}/10 = final case complexity ${score}/10.${detail}`;
 }
 
 export function scoreClinicalComplexity(

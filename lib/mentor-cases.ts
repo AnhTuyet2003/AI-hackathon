@@ -16,7 +16,8 @@ const base: ExtractedFields = {
   testResults: "Not clinically indicated",
   treatment: "Routine wellness consultation",
   procedures: "Routine assessment",
-  clinicalCourse: "Same-day visit completed with home recovery instructions.",
+  clinicalCourse:
+    "Outpatient same-day visit completed with home recovery instructions.",
   diagnosis: "Routine health assessment",
   diagnosisCode: "Z00.0",
   supportingDocuments: "Consultation report and itemized bill",
@@ -50,7 +51,7 @@ const surgical = {
   treatment: "Intravenous antibiotics and surgical care",
   procedures: "Appendectomy with operative report",
   clinicalCourse:
-    "Multi-day admission; localized peritonitis complication monitored. Release after recovery.",
+    "Inpatient multi-day admission; localized peritonitis complication monitored. Release after recovery.",
   diagnosis: "Acute appendicitis with localized peritonitis",
   diagnosisCode: "K35.30",
   supportingDocuments: "Operative report and hospital bill",

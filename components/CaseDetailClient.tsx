@@ -348,9 +348,9 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
               <FieldRow label="Reason code" locked>
                 {formatComplexityReason(
                   displayedComplexityScore,
-                  complexity.applicationComplexityScore,
-                  complexity.clinicalComplexityScore,
-                  complexity.driverFactors,
+                  complexity.applicationComplexityScore ?? 0,
+                  complexity.clinicalComplexityScore ?? 0,
+                  complexity.driverFactors
                 )}
               </FieldRow>
               {complexity.driverFactors.length ? (
@@ -367,19 +367,25 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
                   ? "Gemini (live LLM)"
                   : "Deterministic rule-based fallback"}
               </FieldRow>
-              <FieldRow label="Application complexity" locked>
-                {complexity.applicationComplexityScore}/10
-              </FieldRow>
-              <FieldRow label="Clinical complexity" locked>
-                {complexity.clinicalComplexityScore}/10
-              </FieldRow>
+              {complexity.applicationComplexityScore != null && (
+                <FieldRow label="Application complexity" locked>
+                  {complexity.applicationComplexityScore}/10
+                </FieldRow>
+              )}
+              {complexity.clinicalComplexityScore != null && (
+                <FieldRow label="Clinical complexity" locked>
+                  {complexity.clinicalComplexityScore}/10
+                </FieldRow>
+              )}
               <FieldRow label="Final case complexity" locked>
                 {displayedComplexityScore}/10
               </FieldRow>
-              <FieldRow label="Complexity confidence" locked>
-                {Math.round(complexity.complexityConfidence * 100)}%
-              </FieldRow>
-              {complexity.complexityEvidence.length ? (
+              {complexity.complexityConfidence != null && (
+                <FieldRow label="Complexity confidence" locked>
+                  {Math.round(complexity.complexityConfidence * 100)}%
+                </FieldRow>
+              )}
+              {complexity.complexityEvidence?.length ? (
                 <FieldRow label="Clinical complexity evidence" locked>
                   <ul className="list-disc space-y-0.5 pl-4">
                     {complexity.complexityEvidence.map((item) => (
@@ -393,6 +399,16 @@ function AssessmentTab({ caseItem }: { caseItem: UnderwritingCase }) {
             <p className="text-[13px] text-muted">Not scored yet.</p>
           )}
         </FormSection>
+
+        <FormSection title="Basic Information">
+          <FieldRow label="Medical history" locked>
+            {caseItem.medicalHistory || <span className="text-muted">—</span>}
+          </FieldRow>
+          <FieldRow label="Disclosures" locked>
+            {caseItem.disclosures || <span className="text-muted">—</span>}
+          </FieldRow>
+        </FormSection>
+
       </div>
 
       <div className="space-y-4">

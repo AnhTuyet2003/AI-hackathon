@@ -91,15 +91,15 @@ export function useRole(): { role: Role; ready: boolean } {
   const [role, setRoleState] = useState<Role>("user");
   const [ready, setReady] = useState(false);
 
-  // Apply the persisted role before the first paint so the shell renders the correct
-  // chrome straight away instead of flashing "user" -> "admin".
+  // Apply the persisted role and attach listeners in the same layout effect so there is
+  // no gap between ready=true and the ROLE_EVENT listener being registered. A passive
+  // useEffect fires after layout effects from other components, which means a setRole()
+  // call from another component's useLayoutEffect would dispatch ROLE_EVENT into the void
+  // if the listener were registered only in a separate passive effect.
   useIsomorphicLayoutEffect(() => {
     setRoleState(getRole());
     setReady(true);
-  }, []);
 
-  // Keep in sync with the switcher (same tab) and other tabs -- passive is fine here.
-  useEffect(() => {
     const sync = () => setRoleState(getRole());
     window.addEventListener(ROLE_EVENT, sync);
     window.addEventListener("storage", sync);

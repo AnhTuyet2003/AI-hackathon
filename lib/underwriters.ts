@@ -39,7 +39,7 @@ export const defaultUnderwriters: Underwriter[] = [
     name: "Priya Nair",
     tier: "Senior",
     authorityLimit: 750_000,
-    specializationTags: ["Endocrinology", "Standard"],
+    specializationTags: ["Endocrinology", "General Surgery", "Standard"],
     currentQueueLoad: 4,
     slaMinutesRemainingAvg: 240,
     availability: "active",
