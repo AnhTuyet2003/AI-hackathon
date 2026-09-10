@@ -31,13 +31,6 @@ import type {
   UnderwritingCase,
 } from "@/lib/types";
 
-const PRODUCT_LINES = [
-  "Individual Life",
-  "Group Life",
-  "Critical Illness",
-  "Health",
-];
-
 const ACCEPTED_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -82,7 +75,7 @@ const EMPTY: ApplicationInput = {
   age: 30,
   sumAssured: 100_000,
   occupation: "",
-  productLine: "Individual Life",
+  productLine: "Health",
   medicalHistory: "",
   disclosures: "",
   documents: [],
@@ -531,20 +524,6 @@ export function SubmitClient() {
                   type="number"
                   value={form.sumAssured}
                 />
-              </label>
-              <label className="field-label">
-                Product line
-                <select
-                  className="field-input"
-                  onChange={(e) => update("productLine", e.target.value)}
-                  value={form.productLine}
-                >
-                  {PRODUCT_LINES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
               </label>
               <label className="field-label">
                 Upload action
