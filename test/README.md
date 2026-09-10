@@ -20,6 +20,10 @@ for demo/test data — the running app reads from it too.
 
 ## Commands
 
+Treatment-category evaluation tests live in `care-routing.test.ts`. They verify required-field
+gating, independent category evidence, strict single-category routing, model-output validation,
+data separation and metric accounting. See [the evaluation guide](../evaluation/care/README.md).
+
 ```bash
 npm test            # run the Jest fixture suite with assertions (exit 1 on drift)
 npm run test:coverage # run Jest with coverage reporting
@@ -54,3 +58,6 @@ On `/submit` (as `user` or `admin`), attach files from `fixtures/documents/`:
 - `application-form.pdf` / `id-verification.pdf` → age, occupation, marital status
 
 OCR runs on attach; the reconcile panel then asks you to align any differences before submit.
+# Label Review checks
+
+`care-review.test.ts` covers independent review requirements, exact-source evidence, approval and correction rules, unresolved field disagreements, backup validation, and reviewed-label ingestion into the evaluator. These are software checks, not domain review of the synthetic labels.

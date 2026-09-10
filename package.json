@@ -12,7 +12,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --runInBand --coverage",
-    "make-docs": "node test/make-documents.mjs"
+    "make-docs": "node test/make-documents.mjs",
+    "evaluate:care": "tsc -p tsconfig.evaluation.json && node .evaluation-build/evaluation/care/run.js"
   },
   "dependencies": {
     "@google/genai": "^2.10.0",

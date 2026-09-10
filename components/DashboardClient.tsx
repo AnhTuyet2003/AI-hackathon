@@ -6,7 +6,7 @@ import { ComplexityBadge, StatusBadge } from "@/components/Badges";
 import { CommandBar, CommandButton, CommandDivider, FormSection, RecordHeader } from "@/components/ModelDriven";
 import { StatCard } from "@/components/StatCard";
 import { getCases, resetCases } from "@/lib/local-store";
-import { underwriterRegistry } from "@/lib/underwriters";
+import { getUnderwriters } from "@/lib/underwriters";
 import type { UnderwritingCase } from "@/lib/types";
 
 const PAGE_SIZE = 8;
@@ -85,7 +85,7 @@ export function DashboardClient() {
                 </tr>
               </thead>
               <tbody>
-                {underwriterRegistry.map((uw) => (
+                {getUnderwriters().map((uw) => (
                   <tr className="border-b border-line" key={uw.id}>
                     <td className="py-2 pr-3 font-medium">
                       {uw.name} <span className="text-muted">({uw.tier})</span>
@@ -120,7 +120,7 @@ export function DashboardClient() {
               <p className="text-[13px] text-muted">No cases yet — submit a new application to see the pipeline run.</p>
             ) : null}
             {visibleCases.map((c) => {
-              const assignee = c.assigneeId ? underwriterRegistry.find((u) => u.id === c.assigneeId) : null;
+              const assignee = c.assigneeId ? getUnderwriters().find((u) => u.id === c.assigneeId) : null;
               return (
                 <Link
                   className="flex flex-col gap-1.5 rounded border border-line bg-white p-3 transition hover:border-udblue md:flex-row md:items-center md:justify-between"

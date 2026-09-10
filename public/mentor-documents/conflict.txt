@@ -1,0 +1,24 @@
+Synthetic medical evidence — mentor demo only.
+Care setting: Inpatient admission for tooth extraction.
+Relevant medical history: No known conditions or drug allergies.
+Patient responsibility: 20
+Supporting documents: Consultation report and itemized bill
+Reason for care: Painful molar
+Clinical course: Dental procedure completed.
+Eligible amount: 80
+Insurer payment: 80
+Investigations: Periapical radiograph
+Diagnosis code: K04.0
+Policy number: DEMO-1001
+Provider code: CLINIC-01
+Facility name: Example Dental Center
+Service start: 2026-08-12
+Billed amount: 100
+Patient name: Mentor Example
+Test results: Pulp inflammation
+Examination: Oral examination with percussion testing
+Department: Dental
+Procedures: Tooth extraction
+Treatment: Root canal treatment
+Diagnosis: Pulpitis
+Symptoms: Tooth sensitivity
