@@ -1,4 +1,5 @@
 import { extractDocuments, type UploadedFile } from "./document-ingest";
+import { classifyWithGeminiAI } from "./care-classifier-ai";
 import { runMatching } from "./matching";
 import {
   appendAudit,
@@ -41,11 +42,41 @@ export async function runIntakePipeline(
   const extractions = opts.files?.length
     ? await extractDocuments(opts.files)
     : (opts.extractions ?? []);
+
+  // Run AI-backed care classification BEFORE prepareIntake so structured fields
+  // extracted by Gemini (department, serviceEnd, diagnosisCode, etc.) can inform
+  // the category decision — not just raw text keyword matching.
+  // Falls back to undefined so prepareIntake uses the keyword classifier.
+  const careEvidenceOverride =
+    process.env.AI_UD_LIVE_SERVICES === "true" && extractions.length
+      ? await classifyWithGeminiAI(
+          extractions,
+          extractions.map((e, i) => ({
+            id: `D${i + 1}`,
+            text: e.rawText ?? "",
+          })),
+          {
+            submissionId: "preflight",
+            submissionUse: "preauthorization",
+            memberId: input.applicantName,
+            policyId: "preflight",
+            providerId: "preflight",
+            serviceDate: new Date().toISOString().slice(0, 10),
+            documents: extractions.map((e, i) => ({
+              id: `D${i + 1}`,
+              text: e.rawText ?? "",
+            })),
+          },
+        )
+      : undefined;
+
+  const id = `APP-${crypto.randomUUID()}`;
   const c = prepareIntake(
     input,
     extractions,
-    `APP-${crypto.randomUUID()}`,
+    id,
     opts.verified !== false,
+    careEvidenceOverride ?? undefined,
   );
   if (opts.reconciliation) {
     c.ingestion!.reconciliation = opts.reconciliation;

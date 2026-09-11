@@ -1,4 +1,5 @@
 import { classifyCareDocuments } from "./care-classifier";
+import { classifyWithGeminiAI } from "./care-classifier-ai";
 import { CARE_POLICY_VERSION, decideCareRoute } from "./care-routing";
 import { evaluateDocumentQuality } from "./document-quality";
 import { extractEntities, scoreComplexity } from "./mock-ai";
@@ -122,6 +123,8 @@ export function prepareIntake(
   extractions: DocumentExtraction[],
   id: string,
   verified = true,
+  /** Pre-computed by the async Gemini classifier in pipeline.ts. Falls back to keyword classifier when absent. */
+  careEvidenceOverride?: import("./care-routing").CareEvidence,
 ): UnderwritingCase {
   const now = new Date().toISOString();
   // Document findings remain separate even when the user previously added a marked summary.
@@ -247,7 +250,10 @@ export function prepareIntake(
     id: `D${i + 1}`,
     text: e.rawText!,
   }));
-  const evidence = classifyCareDocuments(documents);
+  const careClassifierEngine = careEvidenceOverride
+    ? "gemini"
+    : "keyword-fallback";
+  const evidence = careEvidenceOverride ?? classifyCareDocuments(documents);
   // Common identity/date requirements were checked above. This adapter isolates the shared category policy from claim-specific transport IDs.
   const decision = decideCareRoute(
     {
@@ -266,7 +272,7 @@ export function prepareIntake(
   appendAudit(
     c,
     "Care categories evaluated",
-    `${CARE_POLICY_VERSION}; supported: ${decision.matchedCategories.join(", ") || "none"}; uncertain: ${decision.uncertainCategories.join(", ") || "none"}.`,
+    `${CARE_POLICY_VERSION} [${careClassifierEngine}]; supported: ${decision.matchedCategories.join(", ") || "none"}; uncertain: ${decision.uncertainCategories.join(", ") || "none"}.`,
   );
   if (!decision.category)
     return pool(
